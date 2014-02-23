@@ -53,7 +53,7 @@ function parse_commandline()
         "--host"
             help = "host name"
             default = "localhost"
-        "arg1"
+        "port"
             help = "listen port number"
             required = true
     end
@@ -79,4 +79,6 @@ function main(game::Uint64, args)
     end
 
     print(Mechajyo.engine_info(true, game))
+
+    oMap = Mechajyo.initialize(univ)
 end

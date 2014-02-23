@@ -3,4 +3,6 @@ type USI <: UGI
     function USI(g::Uint64)
         game = g
     end
+    function init()
+    end
 end
