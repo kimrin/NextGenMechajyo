@@ -1,7 +1,8 @@
 type UCI <: UGI
     game::Uint64
+    is_callback_enable::Bool
     function UCI(g::Uint64)
-        return new(g)
+        return new(g, false)
     end
 end
 
@@ -70,8 +71,10 @@ function on_callback_do_nothing(opt::Option)
 end
 
 function initialize(uci::UCI)
-    o = OptionMap()
+    uci.is_callback_enable = false
 
+    o = OptionMap()
+    
     o["Write Debug Log"]             = Option(false, uci, on_logger)
     o["Write Search Log"]            = Option(false, uci)
     o["Search Log Filename"]         = Option("SearchLog.txt", uci)
@@ -104,10 +107,14 @@ function initialize(uci::UCI)
     o["Slow Mover"]                  = Option(80, 10, 1000, uci)
     o["UCI_Chess960"]                = Option(false, uci)
     o["UCI_AnalyseMode"]             = Option(false, uci, on_eval)
+
+    uci.is_callback_enable = true
     
     return o
 end
 
 function setindex!(omap::OptionMap, value::Option, key::String)
-    value.on_change(value)
+    if value.uci.is_callback_enable
+        value.on_change(value)
+    end
 end
