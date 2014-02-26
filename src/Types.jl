@@ -369,38 +369,36 @@ function pawn_push(c::Color)
     c == WHITE ? DELTA_N : DELTA_S
 end
 
-# inline Square from_sq(Move m) {
-#   return Square((m >> 6) & 0x3F);
-# }
+function from_sq(m::Move)
+    Square((m >> 6) & 0x3F)
+end
 
-# inline Square to_sq(Move m) {
-#   return Square(m & 0x3F);
-# }
+function to_sq(m::Move)
+    Square(m & 0x3F)
+end
 
-# inline MoveType type_of(Move m) {
-#   return MoveType(m & (3 << 14));
-# }
+function type_of(m::Move)
+    MoveType(m & (3 << 14))
+end
 
-# inline PieceType promotion_type(Move m) {
-#   return PieceType(((m >> 12) & 3) + 2);
-# }
+function promotion_type(m::Move)
+    PieceType(((m >> 12) & 3) + 2)
+end
 
-# inline Move make_move(Square from, Square to) {
-#   return Move(to | (from << 6));
-# }
+function make_move(from::Square, to::Square)
+    Move(to | (from << 6))
+end
 
-# template<MoveType T>
-# inline Move make(Square from, Square to, PieceType pt = KNIGHT) {
-#   return Move(to | (from << 6) | T | ((pt - KNIGHT) << 12));
-# }
+function make(from::Square, to::Square, T::MoveType, pt::PieceType = KNIGHT) # re-arrange function list!
+    Move(to | (from << 6) | T | ((pt - KNIGHT) << 12))
+end
 
-# inline bool is_ok(Move m) {
-#   return from_sq(m) != to_sq(m); // Catches also MOVE_NULL and MOVE_NONE
-# }
+function is_ok(m::Move)
+    from_sq(m) != to_sq(m) # Catches also MOVE_NULL and MOVE_NONE
+end
 
-# inline const std::string square_to_string(Square s) {
-#   char ch[] = { file_to_char(file_of(s)), rank_to_char(rank_of(s)), 0 };
-#   return ch;
-# }
-
-# #endif // #ifndef TYPES_H_INCLUDED
+function square_to_string(s::Square)
+    fi = file_to_char(file_of(s))
+    ra = rank_to_char(rank_of(s))
+    "$(fi)$(ra)"
+end
