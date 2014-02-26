@@ -7,5 +7,5 @@ type USI <: UGI
 end
 
 function initialize(usi::USI)
-    None
+    None # tentative treatment:(
 end
