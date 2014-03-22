@@ -62,7 +62,7 @@ function parse_commandline()
 end
 
 function main(game::Uint64, args)
-    srand(1234)
+    srand(73)
 
     parsed_args = parse_commandline()
     # println("Parsed args:")
@@ -81,4 +81,7 @@ function main(game::Uint64, args)
     print(Mechajyo.engine_info(true, game))
 
     oMap = Mechajyo.initialize(univ)
+    c = Mechajyo.Context(game)
+    Mechajyo.init(c.bb)
+    
 end

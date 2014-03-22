@@ -9,12 +9,15 @@ const HasPopCnt = true
 const Is64Bit = true
 
 typealias Key Uint64
+keyC = uint64
 
 # for Chess pieces
 typealias Bitboard Uint64
+bitboard = uint64
 
 # for Shogi pieces
 typealias SBitboard Uint128
+sbitboard = uint128
 
 const MAX_MOVES      = int32(256)
 const MAX_PLY        = int32(120)
@@ -33,10 +36,14 @@ const MAX_PLY_PLUS_6 = int32(MAX_PLY + 6)
 # while MOVE_NONE and MOVE_NULL have the same origin and destination square.
 
 typealias Move Uint16
+move = uint16
+
 const MOVE_NONE = uint16(0)
 const MOVE_NULL = uint16(65)
 
 typealias MoveType Uint16
+moveType = uint16
+
 const NORMAL    = uint16(0)
 const PROMOTION = uint16(1 << 14)
 const ENPASSANT = uint16(2 << 14)
@@ -45,6 +52,8 @@ const CASTLING  = uint16(3 << 14)
 # following definition of (enums) may be changed to Uint32 or Uint64
 
 typealias CastlingFlag Uint16 # Defined as in PolyGlot book hash key
+castlingFlag = uint16
+
 const NO_CASTLING = uint16(0)
 const WHITE_OO    = uint16(1)
 const WHITE_OOO   = uint16(WHITE_OO << 1)
@@ -54,11 +63,15 @@ const ANY_CASTLING = uint16(WHITE_OO | WHITE_OOO | BLACK_OO | BLACK_OOO)
 const CASTLING_FLAG_NB = uint16(16)
 
 typealias CastlingSide Uint16
+castlingSide = uint16
+
 const KING_SIDE        = uint16(0)
 const QUEEN_SIDE       = uint16(1)
 const CASTLING_SIDE_NB = uint16(2)
 
 typealias Phase Uint16
+phase = uint16
+
 const PHASE_ENDGAME = uint16(0)
 const PHASE_MIDGAME = uint16(128)
 const MG            = uint16(0)
@@ -66,6 +79,8 @@ const EG            = uint16(1)
 const PHASE_NB      = uint16(2)
 
 typealias ScaleFactor Uint16
+scaleFactor = uint16
+
 const SCALE_FACTOR_DRAW    = uint16(0)
 const SCALE_FACTOR_ONEPAWN = uint16(48)
 const SCALE_FACTOR_NORMAL  = uint16(64)
@@ -73,12 +88,16 @@ const SCALE_FACTOR_MAX     = uint16(128)
 const SCALE_FACTOR_NONE    = uint16(255)
 
 typealias Bound Uint16
+bound = uint16
+
 const BOUND_NONE  = uint16(0)
 const BOUND_UPPER = uint16(1)
 const BOUND_LOWER = uint16(2)
 const BOUND_EXACT = uint16(BOUND_UPPER | BOUND_LOWER)
 
 typealias Value Int32
+value = int32
+
 const VALUE_ZERO      = int32(0)
 const VALUE_DRAW      = int32(0)
 const VALUE_KNOWN_WIN = int32(10000)
@@ -105,6 +124,8 @@ const RookValueEg   = int32(1278)
 const QueenValueEg  = int32(2558) 
 
 typealias PieceType Int32
+pieceType = int32
+
 const NO_PIECE_TYPE = int32(0)
 const PAWN          = int32(1)
 const KNIGHT        = int32(2)
@@ -116,6 +137,8 @@ const ALL_PIECES    = int32(0)
 const PIECE_TYPE_NB = int32(8)
 
 typealias Piece Int32
+piece = int32
+
 const NO_PIECE  = int32(0)
 const W_PAWN    = int32(1)
 const W_KNIGHT  = int32(2)
@@ -133,6 +156,8 @@ const B_KING    = int32(14)
 const PIECE_NB  = int32(16)
 
 typealias Color Int32
+color = int32
+
 const WHITE    = int32(0)
 const BLACK    = int32(1)
 const NO_COLOR = int32(2)
@@ -148,6 +173,7 @@ const DEPTH_QS_RECAPTURES = int32(-5 * ONE_PLY)
 const DEPTH_NONE          = int32(-127 * ONE_PLY)
 
 typealias Square Int32
+squareC = int32
 
 const SQ_A1 =  int32(0)
 const SQ_B1 =  int32(1)
@@ -230,6 +256,8 @@ const DELTA_SW = int32(DELTA_S + DELTA_W)
 const DELTA_NW = int32(DELTA_N + DELTA_W)
 
 typealias File Int32
+fileC = int32
+
 const FILE_A = int32(0)
 const FILE_B = int32(1)
 const FILE_C = int32(2)
@@ -241,6 +269,8 @@ const FILE_H = int32(7)
 const FILE_NB= int32(8)
 
 typealias Rank Int32
+rankC = int32
+
 const RANK_1 = int32(0)
 const RANK_2 = int32(1)
 const RANK_3 = int32(2)
@@ -292,15 +322,15 @@ function (<)(f::ExtMove, s::ExtMove)
 end
 
 function opp(c::Color) # cannot overwritten ~(Int32,), so tentative name "opp" is given
-    Color(c $ BLACK)
+    color(c $ BLACK)
 end
 
 function flip(s::Square) # cannot overwritten ~(Int32,) so tentative name "flip" is given
-    Square(s $ SQ_A8) # Vertical flip SQ_A1 -> SQ_A8
+    squareC(s $ SQ_A8) # Vertical flip SQ_A1 -> SQ_A8
 end
 
 function file_rank(f::File, r::Rank) # cannot overwritten |(Int32,Int32) so tentative name file_rank is given
-    Square((r << 3)|f)
+    squareC((r << 3)|f)
 end
 
 function mate_in(ply::Int32)
@@ -312,7 +342,7 @@ function mated_in(ply::Int32)
 end
 
 function make_piece(c::Color, pt::PieceType)
-    Piece((c << 3) | pt)
+    piece((c << 3) | pt)
 end
 
 function make_castling_flag(c::Color, s::CastlingSide)
@@ -325,7 +355,7 @@ end
 
 function color_of(p::Piece)
     #assert(p != NO_PIECE);
-    Color(p >> 3)
+    color(p >> 3)
 end
 
 function is_ok(s::Square)
@@ -333,15 +363,15 @@ function is_ok(s::Square)
 end
 
 function file_of(s::Square)
-    File(s & 7)
+    fileC(s & 7)
 end
 
 function rank_of(s::Square)
-    Rank(s >> 3)
+    rankC(s >> 3)
 end
 
 function relative_square(c::Color, s::Square)
-    Square(s $ (c*56))
+    squareC(s $ (c*56))
 end
 
 function relative_rank(c::Color, r::Rank)
@@ -370,11 +400,11 @@ function pawn_push(c::Color)
 end
 
 function from_sq(m::Move)
-    Square((m >> 6) & 0x3F)
+    squareC((m >> 6) & 0x3F)
 end
 
 function to_sq(m::Move)
-    Square(m & 0x3F)
+    squareC(m & 0x3F)
 end
 
 function type_of(m::Move)
@@ -401,4 +431,8 @@ function square_to_string(s::Square)
     fi = file_to_char(file_of(s))
     ra = rank_to_char(rank_of(s))
     "$(fi)$(ra)"
+end
+
+function more_than_one(b::Bitboard)
+    b & (b - 1)
 end
