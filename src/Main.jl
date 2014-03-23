@@ -82,6 +82,6 @@ function main(game::Uint64, args)
 
     oMap = Mechajyo.initialize(univ)
     c = Mechajyo.Context(game)
-    Mechajyo.init(c.bb)
+    Mechajyo.initBB(c.bb)
     
 end

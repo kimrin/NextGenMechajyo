@@ -82,48 +82,91 @@ function lsb(bb::ContextBB, b::Bitboard)
     bb.BSFTable[bsf_index(b) + 1]
 end
 
-function init(bb::ContextBB)
-    bb.SquareBB = Bitboard[bitboard(1<<s) for s = SQ_A1:SQ_H8]
+function square_distance(bb::ContextBB, s1::Square, s2::Square)
+    bb.SquareDistance[s1+1,s2+1]
+end
 
-    sqStringArray = [pretty2(bb,bb.SquareBB[s+1]) for s = SQ_A1:SQ_H8]
-
+function testBB(bb::ContextBB)
+    # sqStringArray = [pretty2(bb,bb.SquareBB[s+1]) for s = SQ_A1:SQ_H8]
     # for idxxx = SQ_A1:SQ_H8
     #     println(square_to_string(idxxx))
     #     println(sqStringArray[idxxx+1])
     # end
-
-    bb.BSFTable = zeros(Square, SQUARE_NB)
-    for s = SQ_A1:SQ_H8
-        bb.BSFTable[bsf_index(bb.SquareBB[s+1])+1] = s
-    end
 
     # for s = SQ_A1:SQ_H8
     #     println(square_to_string(s))
     #     println(pretty2(bb,bb.SquareBB[bb.BSFTable[s+1] + 1]))
     # end
 
+    # for b = 1:255
+    #     println(b,": ", bb.MS1BTable[b])
+    # end
+
+    # for f = FILE_A:FILE_H
+    #     println(pretty2(bb, bb.FileBB[f+1]))
+    # end
+    # for r = RANK_1:RANK_8
+    #     println(pretty2(bb, bb.RankBB[r+1]))
+    # end
+
+    # for f = FILE_A:FILE_H
+    #     println(pretty2(bb, bb.AdjacentFilesBB[f+1]))
+    # end
+
+    # for r = RANK_1:RANK_8
+    #     println("white r=",r);
+    #     println(pretty2(bb,bb.InFrontBB[WHITE+1,r+1]))
+    #     println("black r=",r);
+    #     println(pretty2(bb,bb.InFrontBB[BLACK+1,r+1]))
+    # end
+
+    # for c = WHITE:BLACK
+    #     for s = SQ_A1:SQ_H8
+    #         println((c==WHITE)?"WHITE":"BLACK", " ", "s=", s)
+    #         println(pretty2(bb, bb.ForwardBB[c+1,s+1]))
+    #         println(pretty2(bb, bb.PawnAttackSpan[c+1,s+1]))
+    #         println(pretty2(bb, bb.PassedPawnMask[c+1,s+1]))
+    #     end
+    # end
+
+    # for s1 = SQ_A1:SQ_H8
+    #     for s2 = FILE_A:FILE_H
+    #         println("s1=",s1,", s2=",s2,": BB=",pretty2(bb, bb.DistanceRingsBB[s1+1, s2+1]))
+    #     end
+    # end
+
+    for c = WHITE:BLACK
+        for pt = PAWN:KING
+            for s = SQ_A1:SQ_H8
+                println("c=",c,",pt=",pt,",sq=",s)
+                println(pretty2(bb, bb.StepAttacksBB[make_piece(c, pt)+1,s+1]))
+            end
+        end
+    end
+end
+
+function initBB(bb::ContextBB)
+    bb.SquareBB = Bitboard[bitboard(1<<s) for s = SQ_A1:SQ_H8]
+
+    bb.BSFTable = zeros(Square, SQUARE_NB)
+    for s = SQ_A1:SQ_H8
+        bb.BSFTable[bsf_index(bb.SquareBB[s+1])+1] = s
+    end
+
     bb.MS1BTable = zeros(Int32,256)
     for b = 1:255
         bb.MS1BTable[b] = (more_than_one(bitboard(b)) > 0) ? bb.MS1BTable[b-1]: lsb(bb, bitboard(b))
-        println(b,": ", bb.MS1BTable[b])
     end
 
     bb.FileBB = Bitboard[FileABB,FileBBB,FileCBB,FileDBB,FileEBB,FileFBB,FileGBB,FileHBB]
     bb.RankBB = Bitboard[Rank1BB,Rank2BB,Rank3BB,Rank4BB,Rank5BB,Rank6BB,Rank7BB,Rank8BB]
 
-    for f = FILE_A:FILE_H
-        println(pretty2(bb, bb.FileBB[f+1]))
-    end
-    for r = RANK_1:RANK_8
-        println(pretty2(bb, bb.RankBB[r+1]))
-    end
-
     bb.AdjacentFilesBB = Bitboard[(f > FILE_A ? bb.FileBB[f] : 0) | (f < FILE_H ? bb.FileBB[f + 2] : 0) for f = FILE_A:FILE_H]
 
     bb.InFrontBB = zeros(Bitboard, COLOR_NB, RANK_NB)
     for r = RANK_1:(RANK_8-1)
-        bb.InFrontBB[BLACK+1,r+1+1] = bb.InFrontBB[BLACK+1,r+1] | bb.RankBB[r+1]
-        bb.InFrontBB[WHITE+1,r+1] = ~bb.InFrontBB[BLACK+1,r+1+1]
+        bb.InFrontBB[BLACK+1,r+1+1] = bitboard(bb.InFrontBB[BLACK+1,r+1] | bb.RankBB[r+1])
+        bb.InFrontBB[WHITE+1,r+1] = bitboard(~bb.InFrontBB[BLACK+1,r+1+1])
     end
 
     bb.ForwardBB = zeros(Bitboard, COLOR_NB, SQUARE_NB)
@@ -143,32 +186,51 @@ function init(bb::ContextBB)
         for s2 = SQ_A1:SQ_H8
             if s1 != s2
                 bb.SquareDistance[s1+1,s2+1] = max(file_distance(s1, s2), rank_distance(s1, s2))
-                bb.DistanceRingsBB[s1+1, bb.SquareDistance[s1+1,s2+1] - 1+1] |= s2
+                bb.DistanceRingsBB[s1+1, bb.SquareDistance[s1+1,s2+1] - 1+1] |= bb.SquareBB[s2+1];
             end
         end
     end
+
+    steps = Int32[0  0   0   0   0   0   0   0;
+                  7  9   0   0   0   0   0   0;
+                  17 15  10  6  -6 -10 -15 -17;
+                  0  0   0   0   0   0   0   0;
+                  0  0   0   0   0   0   0   0;
+                  0  0   0   0   0   0   0   0;                  
+                  9  7  -7  -9   8   1  -1  -8]::Array{Int32,2}
+
+    steplast = Int32[-1,1,7,-1,-1,-1,7]::Array{Int32,1}
+
+    bb.StepAttacksBB = zeros(Bitboard, PIECE_NB, SQUARE_NB)
+
+    for c = WHITE:BLACK
+        for pt = PAWN:KING
+            for s = SQ_A1:SQ_H8
+                for i = 1:steplast[pt+1]+1
+                    # println(c,",",pt,",",s,":",i)
+                    wstep = steps[pt+1,i]
+                    bstep = -steps[pt+1,i]
+                    ste = (c == WHITE) ? wstep: bstep
+                    to = squareC(s + ste)
+
+                    if is_ok(to) && (square_distance(bb, s, to) < 3)
+                        bb.StepAttacksBB[make_piece(c, pt)+1,s+1] |= bb.SquareBB[to+1]
+                    end
+                end
+            end
+        end
+    end
+
+    RDeltas = Square[DELTA_N,  DELTA_E,  DELTA_S,  DELTA_W]
+    BDeltas = Square[ DELTA_NE, DELTA_SE, DELTA_SW, DELTA_NW]
+
+    testBB(bb)
 end
 
 
 
 # void Bitboards::init() {
 
-#   int steps[][9] = { {}, { 7, 9 }, { 17, 15, 10, 6, -6, -10, -15, -17 },
-#                      {}, {}, {}, { 9, 7, -7, -9, 8, 1, -1, -8 } };
-
-#   for (Color c = WHITE; c <= BLACK; ++c)
-#       for (PieceType pt = PAWN; pt <= KING; ++pt)
-#           for (Square s = SQ_A1; s <= SQ_H8; ++s)
-#               for (int i = 0; steps[pt][i]; ++i)
-#               {
-#                   Square to = s + Square(c == WHITE ? steps[pt][i] : -steps[pt][i]);
-
-#                   if (is_ok(to) && square_distance(s, to) < 3)
-#                       StepAttacksBB[make_piece(c, pt)][s] |= to;
-#               }
-
-#   Square RDeltas[] = { DELTA_N,  DELTA_E,  DELTA_S,  DELTA_W  };
-#   Square BDeltas[] = { DELTA_NE, DELTA_SE, DELTA_SW, DELTA_NW };
 
 #   init_magics(RTable, RAttacks, RMagics, RMasks, RShifts, RDeltas, magic_index<ROOK>);
 #   init_magics(BTable, BAttacks, BMagics, BMasks, BShifts, BDeltas, magic_index<BISHOP>);
