@@ -19,7 +19,7 @@ type RKISS
     d::Uint64
     function RKISS(seed::Int32 = int32(73))
         ins = new(uint64(0xF1EA5EED), uint64(0xD4E12C77), uint64(0xD4E12C77), uint64(0xD4E12C77))
-        for i=0:seed
+        for i=1:seed
             dummy = rand64(ins)
         end
         return ins
@@ -49,8 +49,8 @@ end
 # /// trick is to rotate the randoms of a given quantity 's' known
 # /// to be optimal to quickly find a good magic candidate.
 function magic_rand(T::Type, r::RKISS, s::Int32)
-    rotate_L(rotate_L(randkiss(T,r), (s >> 0) & uint32(0x3F)) & randkiss(T,r)
-             , (s >> 6) & uint32(0x3F) & randkiss(T,r))
+    rotate_L(rotate_L(randkiss(T,r), uint32(uint32(s >>> 0) & uint32(0x3F))) & randkiss(T,r)
+             , uint32(uint32(s >>> 6) & uint32(0x3F) & randkiss(T,r)))
 end
 
 # system RNG version of magic_rand

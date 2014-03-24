@@ -359,7 +359,7 @@ function color_of(p::Piece)
 end
 
 function is_ok(s::Square)
-    (s >= SQ_A1) && (s <= SQ_H8)
+    bool((s >= SQ_A1) && (s <= SQ_H8))
 end
 
 function file_of(s::Square)
@@ -424,7 +424,7 @@ function make(from::Square, to::Square, T::MoveType, pt::PieceType = KNIGHT) # r
 end
 
 function is_ok(m::Move)
-    from_sq(m) != to_sq(m) # Catches also MOVE_NULL and MOVE_NONE
+    (from_sq(m) != to_sq(m)) # Catches also MOVE_NULL and MOVE_NONE
 end
 
 function square_to_string(s::Square)

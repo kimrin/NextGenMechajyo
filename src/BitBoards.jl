@@ -53,15 +53,3 @@ function bsf_index(b::Bitboard)
     return (Is64Bit == true) ? uint32((b * DeBruijn_64) >> 58) : uint32(((uint32(b) ^ uint32(b >> 32)) * DeBruijn_32) >> 26)
 end
 
-function init_magics(table::Array{Bitboard,1},
-                     attacks::Array{Bitboard,2},
-                     magics::Array{Bitboard,1},
-                     masks::Array{Bitboard,1},
-                     shifts::Array{Uint32,1},
-                     deltas::Array{Square,1},
-                     index::Function)
-    # initialization of magics are coming here!
-
-
-end
-
