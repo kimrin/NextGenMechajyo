@@ -276,6 +276,33 @@ function initBB(bb::ContextBB)
     init_magics(bb, ROOK, bb.RTable, bb.RAttacks, bb.RMagics, bb.RMasks, bb.RShifts, RDeltas)
     init_magics(bb, BISHOP, bb.BTable, bb.BAttacks, bb.BMagics, bb.BMasks, bb.BShifts, BDeltas)
 
+    bb.PseudoAttacks = zeros(Bitboard, PIECE_TYPE_NB, SQUARE_NB)
+    bb.LineBB = zeros(Bitboard, SQUARE_NB, SQUARE_NB)
+    bb.BetweenBB = zeros(Bitboard, SQUARE_NB, SQUARE_NB)
+
+    for s1 = SQ_A1:SQ_H8
+        bb.PseudoAttacks[BISHOP+1,s1+1] = attacks_bb(bb, BISHOP, s1, bitboard(0))
+        bb.PseudoAttacks[QUEEN+1,s1+1]  = attacks_bb(bb, BISHOP, s1, bitboard(0))
+
+        bb.PseudoAttacks[ROOK+1,s1+1]   = attacks_bb(bb, ROOK,   s1, bitboard(0))
+        bb.PseudoAttacks[QUEEN+1,s1+1] |= attacks_bb(bb, ROOK,   s1, bitboard(0))
+
+        for s2 = SQ_A1:SQ_H8
+            pc = NO_PIECE
+            if (bb.PseudoAttacks[BISHOP+1,s1+1] & bb.SquareBB[s2+1]) > bitboard(0)
+                pc = W_BISHOP
+            elseif (bb.PseudoAttacks[ROOK+1,s1+1] & bb.SquareBB[s2+1]) > bitboard(0)
+                pc = W_ROOK
+            end
+
+            if pc == NO_PIECE
+                continue
+            end
+            bb.lineBB[s1+1,s2+1] = (attacks_bb(bb, pc, s1, bitboard(0)) & attacks_bb(bb, pc, s2, bitboard(0)))| bb.SquareBB[s1+1] | bb.SquareBB[s2+1]
+            bb.BetweenBB[s1+1,s2+1] = attacks_bb(bb, pc, s1, bb.SquareBB[s2+1]) & attacks_bb(bb, pc, s2, bb.SquareBB[s1+1])
+        end
+    end
+
     testBB(bb)
 end
 
@@ -287,20 +314,18 @@ function magic_index(bb::ContextBB, Pt::PieceType, s::Square, occ::Bitboard)
     Magics = (Pt == ROOK)? bb.RMagics: bb.BMagics
     Shifts = (Pt == ROOK)? bb.RShifts: bb.BShifts
 
-    uint32(((occ & Masks[s+1]) * Magics[s+1]) >> Shifts[s+1])
+    uint(((occ & Masks[s+1]) * Magics[s+1]) >>> Shifts[s+1])
 end
 
-function attack_bb(bb::ContextBB, Pt::PieceType, s::Square, occ::Bitboard)
-    (Pt == ROOK ? bb.RAttacks : bb.BAttacks)[s+1,magic_index(bb, Pt, s, occ)+1]    
+function attacks_bb(bb::ContextBB, Pt::PieceType, s::Square, occ::Bitboard)
+    ar = (Pt == ROOK ? bb.RAttacks : bb.BAttacks)
+    (ar[s+1])[magic_index(bb, Pt, s, occ)+1]
 end
 
 function sliding_attack(bb::ContextBB,
                         deltas::Array{Square,1},
                         sq::Square,
                         occupied::Bitboard)
-
-    # code_llvm(sliding_attack,(ContextBB,Array{Square,1},Square,Bitboard))
-
     attack = bitboard(0)
     for i = 0:(4-1)
         s = squareC(sq + deltas[i+1])
@@ -339,7 +364,7 @@ function init_magics(bb::ContextBB,
     rk = RKISS()
     occupancy = zeros(Bitboard,4096)
     reference = zeros(Bitboard,4096)
-    b     = bitboard(0)
+    b = bitboard(0)
 
     # attacks[s] is a pointer to the beginning of the attacks table for square 's'
     attacks[SQ_A1+1] = table
@@ -356,7 +381,7 @@ function init_magics(bb::ContextBB,
         masks[s+1]  = sliding_attack(bb, deltas, s, bitboard(0)) & ~edges
         shifts[s+1] = ((Is64Bit == true)? 64 : 32) - popcount(masks[s+1])
 
-        println("s=",s)
+        #println("s=",s)
         # println("shifts=", shifts[s+1])
         # println(pretty2(bb,masks[s+1]))
 
@@ -376,7 +401,7 @@ function init_magics(bb::ContextBB,
             b = (b - masks[s+1]) & masks[s+1]
         end
 
-        println("size=",size)
+        #println("size=",size)
 
         # Set the offset for the table of the next square. We have individual
         # table sizes for each square with "Fancy Magic Bitboards".
@@ -408,13 +433,12 @@ function init_magics(bb::ContextBB,
                 if attack > bitboard(0) && attack != reference[i+1]
                     break
                 end
-#                 assert(reference[i]);
                 attack = reference[i+1]
             end
             if idx == (size-1)
                 idx = size
-                println("idx=",idx)
-                println(pretty2(bb,reference[idx]))
+                #println("idx=",idx)
+                #println(pretty2(bb,reference[idx]))
             end
         end
         while idx < size
@@ -432,7 +456,6 @@ function init_magics(bb::ContextBB,
                 if attack > bitboard(0) && attack != reference[i+1]
                     break
                 end
-                 assert(reference[i+1]);
                 attack = reference[i+1]
             end
             if idx == (size-1)
@@ -441,29 +464,3 @@ function init_magics(bb::ContextBB,
         end
     end
 end
-
-
-# void Bitboards::init() {
-
-
-#   init_magics(RTable, RAttacks, RMagics, RMasks, RShifts, RDeltas, magic_index<ROOK>);
-#   init_magics(BTable, BAttacks, BMagics, BMasks, BShifts, BDeltas, magic_index<BISHOP>);
-
-#   for (Square s1 = SQ_A1; s1 <= SQ_H8; ++s1)
-#   {
-#       PseudoAttacks[QUEEN][s1]  = PseudoAttacks[BISHOP][s1] = attacks_bb<BISHOP>(s1, 0);
-#       PseudoAttacks[QUEEN][s1] |= PseudoAttacks[  ROOK][s1] = attacks_bb<  ROOK>(s1, 0);
-
-#       for (Square s2 = SQ_A1; s2 <= SQ_H8; ++s2)
-#       {
-#           Piece pc = (PseudoAttacks[BISHOP][s1] & s2) ? W_BISHOP :
-#                      (PseudoAttacks[ROOK][s1]   & s2) ? W_ROOK   : NO_PIECE;
-
-#           if (pc == NO_PIECE)
-#               continue;
-
-#           LineBB[s1][s2] = (attacks_bb(pc, s1, 0) & attacks_bb(pc, s2, 0)) | s1 | s2;
-#           BetweenBB[s1][s2] = attacks_bb(pc, s1, SquareBB[s2]) & attacks_bb(pc, s2, SquareBB[s1]);
-#       }
-#   }
-# }
