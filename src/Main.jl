@@ -65,23 +65,36 @@ function main(game::Uint64, args)
     srand(73)
 
     parsed_args = parse_commandline()
-    # println("Parsed args:")
-    # for (arg,val) in parsed_args
-    #     println("  $arg  =>  $val")
-    # end
+    println("Parsed args:")
+    pdict = Dict{String,String}()
+
+    for (arg,val) in parsed_args
+        pdict[arg] = val
+        println("  $arg  =>  $val")
+    end
 
     if game == Mechajyo.Chess
-        univ = Mechajyo.UCI(game)
+        univ = Mechajyo.UCI()
         # println("Mechajyo Chess playing program")
     else # game == Shogi
-        univ = Mechajyo.USI(Mechajyo.Shogi)
+        univ = Mechajyo.USI()
         # println("Mechajyo Shogi playing program")
     end
 
+    # output engine information (for debug)
     print(Mechajyo.engine_info(true, game))
 
+    # various initializations
     oMap = Mechajyo.initialize(univ)
     c = Mechajyo.Context(game)
     Mechajyo.initBB(c.bb)
+
+    println("establish server port: ", pdict["port"])
+
+    # main loop
+    #ret = mainloop(univ)
+    println(pdict["host"])
+    ret = Mechajyo.mainLoop(univ, oMap, (pdict["host"]), int(pdict["port"]))
+    # various D'tors treatments
     
 end

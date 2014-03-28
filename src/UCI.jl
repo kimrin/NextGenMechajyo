@@ -1,10 +1,4 @@
-type UCI <: UGI
-    game::Uint64
-    is_callback_enable::Bool
-    function UCI(g::Uint64)
-        return new(g, false)
-    end
-end
+const StartFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"::ASCIIString
 
 type Option
     defaultValue::String
@@ -15,19 +9,39 @@ type Option
     idx::Uint64 # I haven't seen where idx used
     on_change::Function
     uci::UCI
+    usi::USI
     
+    NOuci = UCI() # with garbage
+    NOusi = USI() # with garbage
+
+    # USI C'tors
+    function Option(v::Int64, minv::Int64, maxv::Int64, u::USI, on_c::Function = on_callback_do_nothing)
+        new( "$v", "$v", "spin", minv, maxv, uint64(0xdead), on_c, NOuci, u)
+    end
+    function Option(v::String, u::USI, on_c::Function = on_callback_do_nothing)
+        new( v, v, "string", int64(0), int64(0), uint64(0xdead), on_c, NOuci, u)
+    end
+    function Option(u::USI, on_c::Function = on_callback_do_nothing)
+        new( "", "", "button", int64(0), int64(0), uint64(0xdead), on_c, NOuci, u)
+    end
+    function Option(v::Bool, u::USI, on_c::Function = on_callback_do_nothing)
+        de::String = v ? "true": "false"
+        new( de, de, "check", int64(0), int64(0), uint64(0xdead), on_c, NOuci, u)
+    end
+
+    # UCI C'tors
     function Option(v::Int64, minv::Int64, maxv::Int64, u::UCI, on_c::Function = on_callback_do_nothing)
-        new( "$v", "$v", "spin", minv, maxv, uint64(0xdead), on_c, u)
+        new( "$v", "$v", "spin", minv, maxv, uint64(0xdead), on_c, u, NOusi)
     end
     function Option(v::String, u::UCI, on_c::Function = on_callback_do_nothing)
-        new( v, v, "string", int64(0), int64(0), uint64(0xdead), on_c, u)
+        new( v, v, "string", int64(0), int64(0), uint64(0xdead), on_c, u, NOusi)
     end
     function Option(u::UCI, on_c::Function = on_callback_do_nothing)
-        new( "", "", "button", int64(0), int64(0), uint64(0xdead), on_c, u)
+        new( "", "", "button", int64(0), int64(0), uint64(0xdead), on_c, u, NOusi)
     end
     function Option(v::Bool, u::UCI, on_c::Function = on_callback_do_nothing)
         de::String = v ? "true": "false"
-        new( de, de, "check", int64(0), int64(0), uint64(0xdead), on_c, u)
+        new( de, de, "check", int64(0), int64(0), uint64(0xdead), on_c, u, NOusi)
     end
 end
 
@@ -116,5 +130,114 @@ end
 function setindex!(omap::OptionMap, value::Option, key::String)
     if value.uci.is_callback_enable
         value.on_change(value)
+    end
+end
+
+#Chess Server
+function producer(uci::UCI, omap::OptionMap, host::ASCIIString, port::Int)
+    err = 0
+    server = listen(getaddrinfo(host), int(port))
+    println(server)
+    while true
+        conn = accept(server)
+        println(conn)
+        @async begin
+            try
+                while true
+                    println("before readline")
+                    line = readline(conn)
+                    print("in server loop:", line)
+                    chomp(line)
+                    println(conn, "REPLY:", line)
+                    lis = line #[line,conn]
+                    produce(lis)
+                end
+            catch err
+                print("connection ended with error $err")
+            end
+        end
+    end
+    return err
+end
+
+function mainLoop(uci::UCI, omap::OptionMap, host::ASCIIString, port::Int)
+    p = @task producer(uci, omap, host, port)
+    while true
+        println("before consume")
+        li = consume(p)
+        line = li
+        #sock = li[2]
+        println("line,sock=", line, sock)
+
+        comlist = split(line)
+
+        token = comlist[1]
+
+        println("task:",line)
+
+        if token == "quit" || token == "stop" || token == "ponderhit"
+            # The GUI sends 'ponderhit' to tell us to ponder on the same move the
+            # opponent has played. In case Signals.stopOnPonderhit is set we are
+            # waiting for 'ponderhit' to stop the search (for instance because we
+            # already ran out of time), otherwise we should continue searching but
+            # switch from pondering to normal search.
+            if token != "ponderhit" || false #Search::Signals.stopOnPonderhit
+                # Search::Signals.stop = true;
+                # Threads.main()->notify_one(); // Could be sleeping
+                return 0
+            else
+                # Search::Limits.ponder = false;
+            end
+
+        elseif token == "perft"
+            pos = ""
+            blist = [Options["Hash"],Options["Threads"], int(comlist[2]), "current", "perft"]
+            benchmark(pos, blist)
+        elseif token == "key"
+            #sync_cout << hex << uppercase << setfill('0')
+            #        << "position key: "   << setw(16) << pos.key()
+            #        << "\nmaterial key: " << setw(16) << pos.material_key()
+            #        << "\npawn key:     " << setw(16) << pos.pawn_key()
+            #        << dec << sync_endl;
+        elseif token == "uci"
+            println( sock, engine_info(true, Chess))
+            for k in keys(oMap)
+                v = oMap[k]
+
+                ostr = "option name $(k) type $(v.otype) "
+                if v.otype != "button"
+                    ostr *= "default " * v.defaultValue
+                end
+                if v.otype == "spin"
+                    ostr *= "min " * v.min * " max " * v.max
+                end
+                println(sock, ostr)
+            end
+            # sync_cout << "id name " << engine_info(true)
+            #    << "\n"       << Options
+            # << "\nuciok"  << sync_endl;
+            println("uciok")
+        # elseif token == "eval"
+        #     # Search::RootColor = pos.side_to_move(); // Ensure it is set
+        #     # sync_cout << Eval::trace(pos) << sync_endl;
+        # elseif token == "ucinewgame"
+        #     # TT.clear();
+        # elseif token == "go"
+        #     # go(pos, is);
+        # elseif token == "position"
+        #     # position(pos, is);
+        # elseif token == "setoption"
+        #     # setoption(is);
+        # elseif token == "flip"
+        #     # pos.flip();
+        # elseif token == "bench"
+        #     # benchmark(pos, is);
+        # elseif token == "d"
+        #     # pos.pretty()
+        # elseif token == "isready"
+        #     println(sock, "readyok")
+        else
+          println("Unknown command: ", comlist)
+        end
     end
 end
