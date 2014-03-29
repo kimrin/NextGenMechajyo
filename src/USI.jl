@@ -65,34 +65,78 @@ function initialize(usi::USI)
 
     usi.is_callback_enable = true
     
-    return o
+    o
 end
 
-function setindex!(omap::OptionMap, value::Option, key::String)
-    if value.usi.is_callback_enable
-        value.on_change(value)
-    end
-end
-
-# Shogi Server
-function producer(usi::USI, omap::OptionMap, host::ASCIIString, port::Int)
-    err = 0
-    server = listen(getaddrinfo(host), int(port))
+function mainLoop(uci::USI, omap::OptionMap, sock::Base.TcpSocket)
     while true
-        conn = accept(server)
-        @async begin
-            try
-                while true
-                    line = readline(conn)
-                    chomp(line)
-                    produce([line,conn])
-                end
-            catch err
-                print("connection ended with error $err")
+        line = readline(sock)
+        comlist = split(line)
+        token = comlist[1]
+        if token == "quit" || token == "stop" || token == "ponderhit"
+            # The GUI sends 'ponderhit' to tell us to ponder on the same move the
+            # opponent has played. In case Signals.stopOnPonderhit is set we are
+            # waiting for 'ponderhit' to stop the search (for instance because we
+            # already ran out of time), otherwise we should continue searching but
+            # switch from pondering to normal search.
+            if token != "ponderhit" || false #Search::Signals.stopOnPonderhit
+                # Search::Signals.stop = true;
+                # Threads.main()->notify_one(); // Could be sleeping
+                return token
+            else
+                # Search::Limits.ponder = false;
             end
+
+        elseif token == "perft"
+            pos = ""
+            blist = [Options["Hash"],Options["Threads"], int(comlist[2]), "current", "perft"]
+            # benchmark(pos, blist)
+        elseif token == "key"
+            #sync_cout << hex << uppercase << setfill('0')
+            #        << "position key: "   << setw(16) << pos.key()
+            #        << "\nmaterial key: " << setw(16) << pos.material_key()
+            #        << "\npawn key:     " << setw(16) << pos.pawn_key()
+            #        << dec << sync_endl;
+        elseif token == "usi"
+            print( sock, engine_info(true, Shogi))
+            # println("len of omap = $(length(omap))")
+            for k in sort(collect(keys(omap)))
+                v = omap[k]
+
+                ostr = "option name $(k) type $(v.otype) "
+                if v.otype != "button"
+                    ostr *= "default $(v.defaultValue) "
+                end
+                if v.otype == "spin"
+                    ostr *= "min $(v.min) max $(v.max)"
+                end
+                println(sock, ostr)
+            end
+            # sync_cout << "id name " << engine_info(true)
+            #    << "\n"       << Options
+            # << "\nuciok"  << sync_endl;
+            println(sock, "usiok")
+        elseif token == "eval"
+            # Search::RootColor = pos.side_to_move(); // Ensure it is set
+            # sync_cout << Eval::trace(pos) << sync_endl;
+        elseif token == "usinewgame"
+            # TT.clear();
+        elseif token == "go"
+            # go(pos, is);
+        elseif token == "position"
+            # position(pos, is);
+        elseif token == "setoption"
+            # setoption(is);
+        elseif token == "flip"
+            # pos.flip();
+        elseif token == "bench"
+            # benchmark(pos, is);
+        elseif token == "d"
+            # pos.pretty()
+        elseif token == "isready"
+            println(sock, "readyok")
+        else
+          println("Unknown command: ", comlist)
         end
     end
-    return err
 end
-
-# mainLoop comes here!

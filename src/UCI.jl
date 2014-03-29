@@ -87,8 +87,8 @@ end
 function initialize(uci::UCI)
     uci.is_callback_enable = false
 
-    o = OptionMap()
-    
+    o = OptionMap()    
+
     o["Write Debug Log"]             = Option(false, uci, on_logger)
     o["Write Search Log"]            = Option(false, uci)
     o["Search Log Filename"]         = Option("SearchLog.txt", uci)
@@ -123,58 +123,22 @@ function initialize(uci::UCI)
     o["UCI_AnalyseMode"]             = Option(false, uci, on_eval)
 
     uci.is_callback_enable = true
-    
-    return o
+
+    o
 end
 
-function setindex!(omap::OptionMap, value::Option, key::String)
+function setindex(omap::OptionMap, value::Option, key::String)
     if value.uci.is_callback_enable
         value.on_change(value)
     end
+    value
 end
 
-#Chess Server
-function producer(uci::UCI, omap::OptionMap, host::ASCIIString, port::Int)
-    err = 0
-    server = listen(getaddrinfo(host), int(port))
-    println(server)
+function mainLoop(uci::UCI, omap::OptionMap, sock::Base.TcpSocket)
     while true
-        conn = accept(server)
-        println(conn)
-        @async begin
-            try
-                while true
-                    println("before readline")
-                    line = readline(conn)
-                    print("in server loop:", line)
-                    chomp(line)
-                    println(conn, "REPLY:", line)
-                    lis = line #[line,conn]
-                    produce(lis)
-                end
-            catch err
-                print("connection ended with error $err")
-            end
-        end
-    end
-    return err
-end
-
-function mainLoop(uci::UCI, omap::OptionMap, host::ASCIIString, port::Int)
-    p = @task producer(uci, omap, host, port)
-    while true
-        println("before consume")
-        li = consume(p)
-        line = li
-        #sock = li[2]
-        println("line,sock=", line, sock)
-
+        line = readline(sock)
         comlist = split(line)
-
         token = comlist[1]
-
-        println("task:",line)
-
         if token == "quit" || token == "stop" || token == "ponderhit"
             # The GUI sends 'ponderhit' to tell us to ponder on the same move the
             # opponent has played. In case Signals.stopOnPonderhit is set we are
@@ -184,7 +148,7 @@ function mainLoop(uci::UCI, omap::OptionMap, host::ASCIIString, port::Int)
             if token != "ponderhit" || false #Search::Signals.stopOnPonderhit
                 # Search::Signals.stop = true;
                 # Threads.main()->notify_one(); // Could be sleeping
-                return 0
+                return token
             else
                 # Search::Limits.ponder = false;
             end
@@ -192,7 +156,7 @@ function mainLoop(uci::UCI, omap::OptionMap, host::ASCIIString, port::Int)
         elseif token == "perft"
             pos = ""
             blist = [Options["Hash"],Options["Threads"], int(comlist[2]), "current", "perft"]
-            benchmark(pos, blist)
+            # benchmark(pos, blist)
         elseif token == "key"
             #sync_cout << hex << uppercase << setfill('0')
             #        << "position key: "   << setw(16) << pos.key()
@@ -200,42 +164,43 @@ function mainLoop(uci::UCI, omap::OptionMap, host::ASCIIString, port::Int)
             #        << "\npawn key:     " << setw(16) << pos.pawn_key()
             #        << dec << sync_endl;
         elseif token == "uci"
-            println( sock, engine_info(true, Chess))
-            for k in keys(oMap)
-                v = oMap[k]
+            print( sock, engine_info(true, Chess))
+            # println("len of omap = $(length(omap))")
+            for k in sort(collect(keys(omap)))
+                v = omap[k]
 
                 ostr = "option name $(k) type $(v.otype) "
                 if v.otype != "button"
-                    ostr *= "default " * v.defaultValue
+                    ostr *= "default $(v.defaultValue) "
                 end
                 if v.otype == "spin"
-                    ostr *= "min " * v.min * " max " * v.max
+                    ostr *= "min $(v.min) max $(v.max)"
                 end
                 println(sock, ostr)
             end
             # sync_cout << "id name " << engine_info(true)
             #    << "\n"       << Options
             # << "\nuciok"  << sync_endl;
-            println("uciok")
-        # elseif token == "eval"
-        #     # Search::RootColor = pos.side_to_move(); // Ensure it is set
-        #     # sync_cout << Eval::trace(pos) << sync_endl;
-        # elseif token == "ucinewgame"
-        #     # TT.clear();
-        # elseif token == "go"
-        #     # go(pos, is);
-        # elseif token == "position"
-        #     # position(pos, is);
-        # elseif token == "setoption"
-        #     # setoption(is);
-        # elseif token == "flip"
-        #     # pos.flip();
-        # elseif token == "bench"
-        #     # benchmark(pos, is);
-        # elseif token == "d"
-        #     # pos.pretty()
-        # elseif token == "isready"
-        #     println(sock, "readyok")
+            println(sock, "uciok")
+        elseif token == "eval"
+            # Search::RootColor = pos.side_to_move(); // Ensure it is set
+            # sync_cout << Eval::trace(pos) << sync_endl;
+        elseif token == "ucinewgame"
+            # TT.clear();
+        elseif token == "go"
+            # go(pos, is);
+        elseif token == "position"
+            # position(pos, is);
+        elseif token == "setoption"
+            # setoption(is);
+        elseif token == "flip"
+            # pos.flip();
+        elseif token == "bench"
+            # benchmark(pos, is);
+        elseif token == "d"
+            # pos.pretty()
+        elseif token == "isready"
+            println(sock, "readyok")
         else
           println("Unknown command: ", comlist)
         end

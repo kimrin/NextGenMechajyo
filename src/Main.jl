@@ -65,36 +65,45 @@ function main(game::Uint64, args)
     srand(73)
 
     parsed_args = parse_commandline()
-    println("Parsed args:")
     pdict = Dict{String,String}()
 
     for (arg,val) in parsed_args
         pdict[arg] = val
-        println("  $arg  =>  $val")
+        # println("  $arg  =>  $val")
     end
 
     if game == Mechajyo.Chess
         univ = Mechajyo.UCI()
-        # println("Mechajyo Chess playing program")
+        println("Mechajyo Chess playing program")
     else # game == Shogi
         univ = Mechajyo.USI()
-        # println("Mechajyo Shogi playing program")
+        println("Mechajyo Shogi playing program")
     end
 
     # output engine information (for debug)
-    print(Mechajyo.engine_info(true, game))
+    # print(Mechajyo.engine_info(true, game))
 
     # various initializations
     oMap = Mechajyo.initialize(univ)
     c = Mechajyo.Context(game)
     Mechajyo.initBB(c.bb)
 
-    println("establish server port: ", pdict["port"])
+    println("establish server ($(pdict["host"])) port: ", pdict["port"])
 
-    # main loop
-    #ret = mainloop(univ)
-    println(pdict["host"])
-    ret = Mechajyo.mainLoop(univ, oMap, (pdict["host"]), int(pdict["port"]))
-    # various D'tors treatments
-    
+    begin
+        server = listen(getaddrinfo(pdict["host"]), int(pdict["port"]))
+        while true
+            println("waiting for connection...")
+            sock = accept(server)
+            println("establish connection!")
+            while true
+                ret = Mechajyo.mainLoop(univ, oMap, sock)
+                if ret == "quit"
+                    break
+                end
+            end
+            close(sock)
+        end
+    end
 end
+

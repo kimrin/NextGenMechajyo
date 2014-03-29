@@ -50,7 +50,7 @@ include("BitBoards.jl")
 include("Globals.jl")
 
 export Chess, Shogi, MECHA_JYOSHI_SHOGI, MECHAJYO_VERSION, MAX_THREADS, MAX_SPLITPOINTS_PER_THREAD
-export Context, ContextBB, initBB, mainLoop # type, functions
+export Context, ContextBB, initBB, mainLoop, OptionMap # type, functions
 
 ###############################################################################
 
