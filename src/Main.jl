@@ -86,7 +86,7 @@ function main(game::Uint64, args)
     # various initializations
     oMap = Mechajyo.initialize(univ)
     c = Mechajyo.Context(game)
-    Mechajyo.initBB(c.bb)
+    Mechajyo.initBB((game == Mechajyo.Shogi) ? c.sbb: c.bb)
 
     println("establish server ($(pdict["host"])) port: ", pdict["port"])
 

@@ -1,3 +1,10 @@
+function file_distance(s1::Square, s2::Square)
+    int32(abs(file_of(s1) - file_of(s2)))
+end
+
+function rank_distance(s1::Square, s2::Square)
+    int32(abs(rank_of(s1) - rank_of(s2)))
+end
 
 # shift_bb() moves bitboard one step along direction Delta. Mainly for pawns.
 function shift_bb(Delta::Square, b::Bitboard)
@@ -34,8 +41,6 @@ function adjacent_files_bb(bb::ContextBB, f::File)
     bb.AdjacentFilesBB[f+1]
 end
 
-
-
 # /// Bitboards::pretty() returns an ASCII representation of a bitboard to be
 # /// printed to standard output. This is sometimes useful for debugging.
 function pretty(bb::ContextBB, b::Bitboard)
@@ -64,7 +69,6 @@ function pretty2(bb::ContextBB, b::Bitboard)
     s
 end
 
-
 function lsb(bb::ContextBB, b::Bitboard)
     bb.BSFTable[bsf_index(b) + 1]
 end
@@ -74,6 +78,16 @@ function square_distance(bb::ContextBB, s1::Square, s2::Square)
 end
 
 function testBB(bb::ContextBB)
+    # for idx = SQ_A1:SQ_H8
+    #     ls1 = lsb(bb, bb.SquareBB[idx+1])
+    #     ls2 = trailing_zeros(bb.SquareBB[idx+1])
+    #     ls3 = leading_zeros(bb.SquareBB[idx+1])
+    #     println("lsb($idx)=",ls1)
+    #     println("trailing_zeros($idx)=",ls2)
+    #     println("leading_zeros($idx)=",ls3)
+    #     println()
+    # end
+
     # sqStringArray = [pretty2(bb,bb.SquareBB[s+1]) for s = SQ_A1:SQ_H8]
     # for idxxx = SQ_A1:SQ_H8
     #     println(square_to_string(idxxx))
@@ -184,7 +198,7 @@ function initBB(bb::ContextBB)
         for s2 = SQ_A1:SQ_H8
             if s1 != s2
                 bb.SquareDistance[s1+1,s2+1] = int32(max(file_distance(s1, s2), rank_distance(s1, s2)))
-                bb.DistanceRingsBB[s1+1, bb.SquareDistance[s1+1,s2+1] - 1+1] |= bb.SquareBB[s2+1];
+                bb.DistanceRingsBB[s1+1, bb.SquareDistance[s1+1,s2+1] - 1+1] |= bb.SquareBB[s2+1]
             end
         end
     end

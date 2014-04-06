@@ -34,18 +34,49 @@ const Rank8BB = bitboard(Rank1BB << (8 * 7))
 # println(bin(Rank7BB))
 # println(bin(Rank8BB))
 
+const SFileABB = sbitboard(0b000000001000000001000000001000000001000000001000000001000000001000000001000000001)
+const SFileBBB = sbitboard(SFileABB << 1)
+const SFileCBB = sbitboard(SFileABB << 2)
+const SFileDBB = sbitboard(SFileABB << 3)
+const SFileEBB = sbitboard(SFileABB << 4)
+const SFileFBB = sbitboard(SFileABB << 5)
+const SFileGBB = sbitboard(SFileABB << 6)
+const SFileHBB = sbitboard(SFileABB << 7)
+const SFileIBB = sbitboard(SFileABB << 8)
+
+const SRank1BB = sbitboard(0x1FF)
+const SRank2BB = sbitboard(SRank1BB << (9 * 1))
+const SRank3BB = sbitboard(SRank1BB << (9 * 2))
+const SRank4BB = sbitboard(SRank1BB << (9 * 3))
+const SRank5BB = sbitboard(SRank1BB << (9 * 4))
+const SRank6BB = sbitboard(SRank1BB << (9 * 5))
+const SRank7BB = sbitboard(SRank1BB << (9 * 6))
+const SRank8BB = sbitboard(SRank1BB << (9 * 7))
+const SRank9BB = sbitboard(SRank1BB << (9 * 8))
+
+# println(bin(SFileABB))
+# println(bin(SFileBBB))
+# println(bin(SFileCBB))
+# println(bin(SFileDBB))
+# println(bin(SFileEBB))
+# println(bin(SFileFBB))
+# println(bin(SFileGBB))
+# println(bin(SFileHBB))
+# println(bin(SFileIBB))
+# println()
+# println(bin(SRank1BB))
+# println(bin(SRank2BB))
+# println(bin(SRank3BB))
+# println(bin(SRank4BB))
+# println(bin(SRank5BB))
+# println(bin(SRank6BB))
+# println(bin(SRank7BB))
+# println(bin(SRank8BB))
+# println(bin(SRank9BB))
+
 # De Bruijn sequences. See chessprogramming.wikispaces.com/BitScan
 const DeBruijn_64 = uint64(0x3F79D71B4CB0A89)
 const DeBruijn_32 = uint32(0x783A9B23)
-
-
-function file_distance(s1::Square, s2::Square)
-    int32(abs(file_of(s1) - file_of(s2)))
-end
-
-function rank_distance(s1::Square, s2::Square)
-    int32(abs(rank_of(s1) - rank_of(s2)))
-end
 
 function bsf_index(b::Bitboard)
     # Matt Taylor's folding for 32 bit systems, extended to 64 bits by Kim Walisch
