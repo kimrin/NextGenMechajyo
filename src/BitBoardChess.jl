@@ -414,7 +414,7 @@ function init_magics(bb::ContextBB,
 
             for i = 0:(size-1)
                 idx = i
-                attack = (attacks[s+1])[index(bb, Pt, s, occupancy[i+1]) + 1]
+                attack = (attacks[s+1])[magic_index(bb, Pt, s, occupancy[i+1]) + 1]
 
                 if attack > bitboard(0) && attack != reference[i+1]
                     break

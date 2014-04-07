@@ -19,7 +19,7 @@ end
 # a bitboard representing all squares on the given file or rank.
 
 function rank_bb_sq(bb::SContextBB, s::Square)
-    bb.RankBB[rank_of(s)+1]
+    bb.RankBB[srank_of(s)+1]
 end
 
 function rank_bb(bb::SContextBB, r::Rank)
@@ -27,7 +27,7 @@ function rank_bb(bb::SContextBB, r::Rank)
 end
 
 function file_bb_sq(bb::SContextBB, s::Square)
-    bb.FileBB[file_of(s)+1]
+    bb.FileBB[sfile_of(s)+1]
 end
 
 function file_bb(bb::SContextBB, f::Rank)
@@ -118,14 +118,16 @@ function testBB(bb::SContextBB)
     #     end
     # end
 
-    for c = WHITE:BLACK
-        for pt = FU:RY
-            for s = SSQ_A1:SSQ_I9
-                println("c=",c,",pt=",pt,",sq=",s)
-                println(pretty2(bb, bb.StepAttacksBB[smake_piece(c, pt)+1,s+1]))
-            end
-        end
-    end
+    # for c = WHITE:BLACK
+    #     for pt = FU:RY
+    #         for s = SSQ_A1:SSQ_I9
+    #             println("c=",c,",pt=",pt,",sq=",s)
+    #             println(pretty2(bb, bb.StepAttacksBB[smake_piece(c, pt)+1,s+1]))
+    #         end
+    #     end
+    # end
+
+
 end
 
 function initBB(bb::SContextBB)
@@ -217,6 +219,175 @@ function initBB(bb::SContextBB)
         end
     end
 
+    RDeltas = Square[SDELTA_N,  SDELTA_E,  SDELTA_S,  SDELTA_W]
+    BDeltas = Square[SDELTA_NE, SDELTA_SE, SDELTA_SW, SDELTA_NW]
+
+    init_magics(bb, ROOK, bb.RTable, bb.RAttacks, bb.RMagics, bb.RMasks, bb.RShifts, RDeltas)
+    init_magics(bb, BISHOP, bb.BTable, bb.BAttacks, bb.BMagics, bb.BMasks, bb.BShifts, BDeltas)
+
     testBB(bb)
 end
 
+# /// Functions for computing sliding attack bitboards. Function attacks_bb() takes
+# /// a square and a bitboard of occupied squares as input, and returns a bitboard
+# /// representing all squares attacked by Pt (bishop or rook) on the given square.
+function magic_index(bb::SContextBB, Pt::PieceType, s::Square, occ::SBitboard)
+    Masks  = (Pt == ROOK)? bb.RMasks: bb.BMasks
+    Magics = (Pt == ROOK)? bb.RMagics: bb.BMagics
+    Shifts = (Pt == ROOK)? bb.RShifts: bb.BShifts
+
+    uint((((occ & Masks[s+1]) * Magics[s+1]) & MaskOfBoard) >>> Shifts[s+1])
+end
+
+function attacks_bb(bb::SContextBB, Pt::PieceType, s::Square, occ::SBitboard)
+    ar = (Pt == ROOK ? bb.RAttacks : bb.BAttacks)
+    (ar[s+1])[magic_index(bb, Pt, s, occ)+1]
+end
+
+function sliding_attack(bb::SContextBB,
+                        deltas::Array{Square,1},
+                        sq::Square,
+                        occupied::SBitboard)
+    attack = sbitboard(0)
+    for i = 0:(4-1)
+        s = squareC(sq + deltas[i+1])
+        dis = 
+        while sis_ok(s) && sis_ok(squareC(s - deltas[i+1])) && (square_distance(bb, s, squareC(s - deltas[i+1])) == int32(1))
+            attack |= bb.SquareBB[s+1]
+
+            if occupied & bb.SquareBB[s+1] != bitboard(0)
+                break
+            end
+            # increments
+            s = squareC(s+deltas[i+1])
+        end
+    end
+
+    attack
+end
+
+# init_magics() computes all rook and bishop attacks at startup. Magic
+# bitboards are used to look up attacks of sliding pieces. As a reference see
+# chessprogramming.wikispaces.com/Magic+Bitboards. In particular, here we
+# use the so called "fancy" approach.
+# (Shogi version)
+function init_magics(bb::SContextBB,
+                     Pt::PieceType,
+                     table::Array{SBitboard,1},
+                     attacks::Array{Array{SBitboard,1},1},
+                     magics::Array{SBitboard,1},
+                     masks::Array{SBitboard,1},
+                     shifts::Array{Uint32,1},
+                     deltas::Array{Square,1})
+
+
+    # original magic boosters: for RKiss
+    MagicBoosters = Int32[969 1976 2850  542 2069 2852 1708  164;
+                          3101 552 3555  926  834   26 2131 1117]::Array{Int32,2}
+
+    # rk = RKISS()
+    occupancy = zeros(SBitboard,65536)
+    reference = zeros(SBitboard,65536)
+    b = sbitboard(0)
+
+    # attacks[s] is a pointer to the beginning of the attacks table for square 's'
+    attacks[SSQ_A1+1] = table
+
+    for s = SSQ_A1:SSQ_I9
+        # Board edges are not considered in the relevant occupancies
+        edges = ((SRank1BB | SRank9BB) & (~rank_bb_sq(bb,s)&MaskOfBoard)) | ((SFileABB | SFileIBB) & (~file_bb_sq(bb,s)&MaskOfBoard))::SBitboard
+        ##println(pretty2(bb,edges))
+        # Given a square 's', the mask is the bitboard of sliding attacks from
+        # 's' computed on an empty board. The index must be big enough to contain
+        # all the attacks for each possible subset of the mask and so is 2 power
+        # the number of 1s of the mask. Hence we deduce the size of the shift to
+        # apply to the 64 or 32 bits word to get the index.
+        masks[s+1]  = sliding_attack(bb, deltas, s, sbitboard(0)) & ~edges
+        shifts[s+1] = 81 - popcount(masks[s+1]) # uncertainly...
+
+        #println("s=",s)
+        #println("shifts=", shifts[s+1])
+        #println(pretty2(bb,masks[s+1]))
+
+        # Use Carry-Rippler trick to enumerate all subsets of masks[s] and
+        # store the corresponding sliding attack bitboard in reference[].
+        size = 0
+        begin
+            occupancy[size+1] = b
+            size += 1
+            reference[size] = sliding_attack(bb, deltas, s, b) # intentionally size is not size+1
+            b = (b - masks[s+1]) & masks[s+1]
+        end
+        while b > sbitboard(0)
+            occupancy[size+1] = b
+            size += 1
+            reference[size] = sliding_attack(bb, deltas, s, b) # intentionally size is not size+1
+            b = (b - masks[s+1]) & masks[s+1]
+        end
+
+        #println("size=",size)
+
+        # Set the offset for the table of the next square. We have individual
+        # table sizes for each square with "Fancy Magic Bitboards".
+        # (original C++ code)
+        #         if (s < SQ_H8)
+        #             attacks[s + 1] = attacks[s] + size;
+        if (s < SSQ_I9)
+            attacks[s+1+1] = zeros(SBitboard,size)
+        end
+        booster = int32(1023) # MagicBoosters[Is64Bit?2:1,rank_of(s)+1] # calculate in later...
+
+        # Find a magic for square 's' picking up an (almost) random number
+        # until we find the one that passes the verification test.
+
+        idx = 0
+
+        begin
+            magics[s+1] = magic_rand(SBitboard,booster)
+            while popcount((MaskOfBoard&(magics[s+1] * masks[s+1])) >>> SSQ_A9) < 6
+                magics[s+1] = magic_rand(SBitboard,booster)
+                #println("magic=",hex(magics[s+1]))
+            end
+
+            attacks[s+1] = zeros(SBitboard,size)
+
+            for i = 0:(size-1)
+                idx = i
+                attack = (attacks[s+1])[magic_index(bb, Pt, s, occupancy[i+1]) + 1]
+
+                if attack > sbitboard(0) && attack != reference[i+1]
+                    break
+                end
+                attack = reference[i+1]
+            end
+            if idx == (size-1)
+                idx = size
+                #println("idx=",idx)
+                #println(pretty2(bb,reference[idx]))
+            end
+        end
+        while idx < size
+            magics[s+1] = magic_rand(SBitboard,booster)
+            while popcount((MaskOfBoard&(magics[s+1] * masks[s+1])) >>> SSQ_A9) < 6
+                magics[s+1] = magic_rand(SBitboard,booster)
+            end
+
+            attacks[s+1] = zeros(SBitboard,size)
+
+            for i = 0:(size-1)
+                idx = i
+                attack = (attacks[s+1])[magic_index(bb, Pt, s, occupancy[i+1]) + 1]
+
+                if attack > sbitboard(0) && attack != reference[i+1]
+                    break
+                end
+                attack = reference[i+1]
+                #println("idx=",idx)
+            end
+            if idx == (size-1)
+                idx = size
+                #println("idx=",idx)
+            end
+        end
+    end
+end

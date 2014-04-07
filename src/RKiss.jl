@@ -30,6 +30,10 @@ function rotate_L(x::Uint64, k::Uint32)
     uint64((x << k) | (x >> (64 - k)))
 end
 
+function rotate_L(x::Uint128, k::Uint32)
+    uint128((x << k) | (x >> (81 - k))) & MaskOfBoard
+end
+
 function rand64(r::RKISS)
     e = r.a - rotate_L(r.b, uint32(7))
     r.a = r.b $ rotate_L(r.c, uint32(13))
@@ -44,6 +48,10 @@ function randkiss(T::Type,r::RKISS)
     oftype(T,rand64(r))
 end
 
+function rand81()
+    rand(Uint128) & MaskOfBoard
+end
+
 
 # /// Special generator used to fast init magic numbers. Here the
 # /// trick is to rotate the randoms of a given quantity 's' known
@@ -55,8 +63,8 @@ end
 
 # system RNG version of magic_rand
 function magic_rand(T::Type, s::Int32)
-    rotate_L(rotate_L(rand(T), uint32(((s >> 0) & uint32(0x3F)) & rand(T)))
-             , uint32((s >> 6) & uint32(0x3F) & rand(T)))
+    rotate_L(rotate_L(rand81(), uint32(((s >> 0) & uint32(0x3F)) & rand81()))
+             , uint32((s >> 6) & uint32(0x3F) & rand81()))
 end
 
 #r = RKISS()
@@ -82,3 +90,7 @@ end
 
 # elapsed time: 0.714120117 seconds in my mac (system RNG)
 # elapsed time: 3.457055139 seconds in my mac (RKISS)
+
+#rn = rand81()
+#println("before:",bin(rn))
+#println("after:",bin(rotate_L(rn,uint32(25))))

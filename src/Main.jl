@@ -62,7 +62,7 @@ function parse_commandline()
 end
 
 function main(game::Uint64, args)
-    srand(73)
+    srand(73) # global random number seed
 
     parsed_args = parse_commandline()
     pdict = Dict{String,String}()
