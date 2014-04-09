@@ -1,5 +1,3 @@
-const StartFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"::ASCIIString
-
 type Option
     defaultValue::String
     currentValue::String
@@ -134,7 +132,9 @@ function setindex(omap::OptionMap, value::Option, key::String)
     value
 end
 
-function mainLoop(uci::UCI, omap::OptionMap, sock::Base.TcpSocket)
+const StartFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"::ASCIIString
+
+function mainLoop(bbb::ContextBB, uci::UCI, omap::OptionMap, sock::Base.TcpSocket)
     while true
         line = readline(sock)
         comlist = split(line)

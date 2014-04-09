@@ -279,11 +279,11 @@ function promotion_type(m::SMove) # in Shogi, promotion type is identical to pie
 end
 
 function smake_move(from::Square, to::Square)
-    Move(to | (from << 8))
+    smove(to | (from << 8))
 end
 
 function make(from::Square, to::Square, p::Piece, flag::Uint32, capt::PieceType) # re-arrange function list! Also not included &ing with masks!
-    Move(to | (from << 8) | (p << 16) | (flag << 24) | (capt << 28))
+    smove(to | (from << 8) | (p << 16) | (flag << 24) | (capt << 28))
 end
 
 function is_ok(m::SMove)

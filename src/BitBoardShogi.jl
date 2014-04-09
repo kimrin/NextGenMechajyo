@@ -309,16 +309,26 @@ function sliding_attack(bb::SContextBB,
 end
 
 # LoadMagics loads magic values from plain file(s)
-function LoadMagics(bb::SContextBB, Pt::PieceType)
+function LoadMagics{T}(bb::T, Pt::PieceType)
     if Pt == ROOK
-        fi = open(RookMagicFileName,"r")
+        if T == SContextBB
+            fn = RookMagicFileName
+        else
+            fn = ChessRookMagicFileName
+        end
+        fi = open(fn,"r")
         bb.RMasks  = deserialize(fi)
         bb.RMagics = deserialize(fi)
         bb.RShifts = deserialize(fi)
         bb.RAttacks= deserialize(fi)
         close(fi)
     elseif Pt == BISHOP
-        fi = open(BishopMagicFileName,"r")
+        if T == SContextBB
+            fn = BishopMagicFileName
+        else
+            fn = ChessBishopMagicFileName
+        end
+        fi = open(fn,"r")
         bb.BMasks  = deserialize(fi)
         bb.BMagics = deserialize(fi)
         bb.BShifts = deserialize(fi)
@@ -374,16 +384,26 @@ function SaveMagics(bb::SContextBB, Pt::PieceType)
     end
 end
 
-function SaveMagicsUsingSerialize(bb::SContextBB, Pt::PieceType)
+function SaveMagicsUsingSerialize{T}(bb::T, Pt::PieceType)
     if Pt == ROOK
-        fi = open(RookMagicFileName,"w")
+        if T == SContextBB
+            fn = RookMagicFileName
+        else
+            fn = ChessRookMagicFileName
+        end
+        fi = open(fn,"w")
         serialize(fi, bb.RMasks)
         serialize(fi, bb.RMagics)
         serialize(fi, bb.RShifts)
         serialize(fi, bb.RAttacks)
         close(fi)
     elseif Pt == BISHOP
-        fi = open(BishopMagicFileName,"w")
+        if T == SContextBB
+            fn = BishopMagicFileName
+        else
+            fn = ChessBishopMagicFileName
+        end
+        fi = open(fn,"w")
         serialize(fi, bb.BMasks)
         serialize(fi, bb.BMagics)
         serialize(fi, bb.BShifts)
@@ -470,9 +490,10 @@ function init_magics(bb::SContextBB,
         # (original C++ code)
         #         if (s < SQ_H8)
         #             attacks[s + 1] = attacks[s] + size;
-        if (s < SSQ_I9)
-            attacks[s+1+1] = zeros(SBitboard,size)
-        end
+
+        #if (s < SSQ_I9)
+        #    attacks[s+1+1] = zeros(SBitboard,size)
+        #end
         booster = int32(0) # MagicBoosters[Is64Bit?2:1,rank_of(s)+1] # calculate in later...
 
         # Find a magic for square 's' picking up an (almost) random number
@@ -491,13 +512,14 @@ function init_magics(bb::SContextBB,
 
             for i = 0:(size-1)
                 idx = i
-                attack = (attacks[s+1])[magic_index(bb, Pt, s, occupancy[i+1]) + 1]
+                magIdx = magic_index(bb, Pt, s, occupancy[i+1]) + 1
+                attack = (attacks[s+1])[magIdx]
 
                 if attack > sbitboard(0) && attack != reference[i+1]
                     break
                 end
-                attack = reference[i+1]
-                (attacks[s+1])[magic_index(bb, Pt, s, occupancy[i+1]) + 1] = reference[i+1]
+                #attack = reference[i+1]
+                (attacks[s+1])[magIdx] = reference[i+1]
                 #println("idx=",idx,"/",size)
             end
             if idx == (size-1)
@@ -516,13 +538,14 @@ function init_magics(bb::SContextBB,
 
             for i = 0:(size-1)
                 idx = i
-                attack = (attacks[s+1])[magic_index(bb, Pt, s, occupancy[i+1]) + 1]
+                magIdx = magic_index(bb, Pt, s, occupancy[i+1]) + 1
+                attack = (attacks[s+1])[magIdx]
 
                 if attack > sbitboard(0) && attack != reference[i+1]
                     break
                 end
-                attack = reference[i+1]
-                (attacks[s+1])[magic_index(bb, Pt, s, occupancy[i+1]) + 1] = reference[i+1]
+                #attack = reference[i+1]
+                (attacks[s+1])[magIdx] = reference[i+1]
                 #println("idx=",idx,"/",size)
             end
             if idx == (size-1)

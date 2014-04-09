@@ -1,3 +1,6 @@
+const ChessBishopMagicFileName = "Chess.Bishop.magic.txt"
+const ChessRookMagicFileName = "Chess.Rook.magic.txt"
+
 function file_distance(s1::Square, s2::Square)
     int32(abs(file_of(s1) - file_of(s2)))
 end
@@ -320,6 +323,14 @@ function init_magics(bb::ContextBB,
                      shifts::Array{Uint32,1},
                      deltas::Array{Square,1})
 
+    if bb.calcMagic == false
+        if Pt == ROOK
+            LoadMagics(bb,ROOK)
+        elseif Pt == BISHOP
+            LoadMagics(bb,BISHOP)
+        end
+        return
+    end
 
     MagicBoosters = Int32[969 1976 2850  542 2069 2852 1708  164;
                           3101 552 3555  926  834   26 2131 1117]::Array{Int32,2}
@@ -344,7 +355,7 @@ function init_magics(bb::ContextBB,
         masks[s+1]  = sliding_attack(bb, deltas, s, bitboard(0)) & ~edges
         shifts[s+1] = ((Is64Bit == true)? 64 : 32) - popcount(masks[s+1])
 
-        #println("s=",s)
+        println("s=",s)
         # println("shifts=", shifts[s+1])
         # println(pretty2(bb,masks[s+1]))
 
@@ -364,16 +375,17 @@ function init_magics(bb::ContextBB,
             b = (b - masks[s+1]) & masks[s+1]
         end
 
-        #println("size=",size)
+        println("size=",size)
 
         # Set the offset for the table of the next square. We have individual
         # table sizes for each square with "Fancy Magic Bitboards".
         # (original C++ code)
         #         if (s < SQ_H8)
         #             attacks[s + 1] = attacks[s] + size;
-        if (s < SQ_H8)
-            attacks[s+1+1] = zeros(Bitboard,size)
-        end
+
+        #if (s < SQ_H8)
+        #    attacks[s+1+1] = zeros(Bitboard,size)
+        #end
         booster = MagicBoosters[Is64Bit?2:1,rank_of(s)+1]
 
         # Find a magic for square 's' picking up an (almost) random number
@@ -391,12 +403,13 @@ function init_magics(bb::ContextBB,
 
             for i = 0:(size-1)
                 idx = i
-                attack = (attacks[s+1])[magic_index(bb, Pt, s, occupancy[i+1]) + 1]
+                magIdx = magic_index(bb, Pt, s, occupancy[i+1]) + 1
+                attack = (attacks[s+1])[magIdx]
 
                 if attack > bitboard(0) && attack != reference[i+1]
                     break
                 end
-                attack = reference[i+1]
+                (attacks[s+1])[magIdx] = reference[i+1]
             end
             if idx == (size-1)
                 idx = size
@@ -414,16 +427,18 @@ function init_magics(bb::ContextBB,
 
             for i = 0:(size-1)
                 idx = i
-                attack = (attacks[s+1])[magic_index(bb, Pt, s, occupancy[i+1]) + 1]
+                magIdx = magic_index(bb, Pt, s, occupancy[i+1]) + 1
+                attack = (attacks[s+1])[magIdx]
 
                 if attack > bitboard(0) && attack != reference[i+1]
                     break
                 end
-                attack = reference[i+1]
+                (attacks[s+1])[magIdx] = reference[i+1]
             end
             if idx == (size-1)
                 idx = size
             end
         end
     end
+    SaveMagicsUsingSerialize(bb, Pt)
 end

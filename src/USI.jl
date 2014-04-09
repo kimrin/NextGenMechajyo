@@ -1,5 +1,3 @@
-const SFENHirate = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL w - 1"::ASCIIString
-
 function int(o::Option)
     if o.otype == "check" || o.otype == "spin"
         return (o.otype == "spin") ? Int64(o.currentValue): (o.currentValue == "true")
@@ -67,8 +65,23 @@ function initialize(usi::USI)
     
     o
 end
+# Initial SFEN board representations:
 
-function mainLoop(uci::USI, omap::OptionMap, sock::Base.TcpSocket)
+const StartSFEN= "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL w - 1"::ASCIIString # normal initial board
+const FestivalSFEN = "l6nl/5+P1gk/2np1S3/p1p4Pp/3P2Sp1/1PPb2P1P/P5GS1/R8/LN4bKL w RGgsn5p 1"::ASCIIString # so many available moves..
+const NanaRokuFUSFEN = "lnsgkgsnl/1r5b1/ppppppppp/9/9/2P6/PP1PPPPPP/1B5R1/LNSGKGSNL w - 1"::ASCIIString # after +7776FU
+
+function mainLoop(bbb::SContextBB, uci::USI, omap::OptionMap, sock::Base.TcpSocket)
+    # Position pos(StartFEN, false, Threads.main()); // The root position
+    pos = SPosition(bbb, StartSFEN, threadNumber(0))
+    #pos = SPosition(bbb, FestivalSFEN, threadNumber(0))
+    pos = SPosition(bbb, NanaRokuFUSFEN, threadNumber(0))
+
+    mov = true ? make(squareC(20), squareC(29), FU, uint32(0), pieceType(0)): SMOVE_NULL
+
+    # print board!
+    pretty(pos,mov)
+
     while true
         line = readline(sock)
         comlist = split(line)

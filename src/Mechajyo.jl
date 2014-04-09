@@ -29,6 +29,13 @@ export UCI, USI,
 #functions
     engine_info, initialize
 
+include("Types.jl")
+include("RKiss.jl")
+include("BitCount.jl")
+include("BitBoards.jl")
+include("Globals.jl")
+include("Position.jl")
+
 include("UCI.jl")
 include("USI.jl")
 
@@ -42,12 +49,6 @@ const MECHAJYO_VERSION = "0.01"
 
 const MAX_THREADS = int64(64) # Because SplitPoint::slavesMask is a uint64_t
 const MAX_SPLITPOINTS_PER_THREAD = int64(8)
-
-include("Types.jl")
-include("RKiss.jl")
-include("BitCount.jl")
-include("BitBoards.jl")
-include("Globals.jl")
 
 export Chess, Shogi, MECHA_JYOSHI_SHOGI, MECHAJYO_VERSION, MAX_THREADS, MAX_SPLITPOINTS_PER_THREAD
 export Context, ContextBB, initBB, mainLoop, OptionMap # type, functions

@@ -63,8 +63,8 @@ end
 
 # system RNG version of magic_rand
 function magic_rand(T::Type, s::Int32)
-    rotate_L(rotate_L(rand81(), uint32(((s >> 0) & uint32(0x3F)) & rand81()))
-             , uint32((s >> 6) & uint32(0x3F) & rand81()))
+    rotate_L(rotate_L(rand81(), uint32(((s >>> 0) & uint32(0x3F)) & rand81()))
+             , uint32((s >>> 6) & uint32(0x3F) & rand81()))
 end
 
 #r = RKISS()
