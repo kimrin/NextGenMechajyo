@@ -49,7 +49,7 @@ function randkiss(T::Type,r::RKISS)
 end
 
 function rand81()
-    rand(Uint128) & MaskOfBoard
+    rand(Uint128) & rand(Uint128) & rand(Uint128) & MaskOfBoard
 end
 
 

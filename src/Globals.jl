@@ -71,6 +71,8 @@ type SContextBB
     RTable::Array{SBitboard,1}
     BTable::Array{SBitboard,1}
 
+    calcMagic::Bool
+
     function SContextBB()
         new() # return with garbage
     end
@@ -84,6 +86,7 @@ type Context
         if game == Shogi
             sbb = SContextBB()
             n.sbb = sbb
+            calcMagic = false
         else
             bb = ContextBB()
             n.bb = bb

@@ -53,6 +53,9 @@ function parse_commandline()
         "--host"
             help = "host name"
             default = "localhost"
+        "--magic"
+            help = "calculate magic board multipliers and store data to files"
+            default = "false"
         "port"
             help = "listen port number"
             required = true
@@ -86,7 +89,19 @@ function main(game::Uint64, args)
     # various initializations
     oMap = Mechajyo.initialize(univ)
     c = Mechajyo.Context(game)
-    Mechajyo.initBB((game == Mechajyo.Shogi) ? c.sbb: c.bb)
+
+    magic = pdict["magic"]
+    #println("magic=",magic)
+    mag = (magic == "false")?false:true
+    println("calculate magics=",mag)
+
+    if game == Mechajyo.Shogi
+        bbb = c.sbb
+        c.sbb.calcMagic = mag
+    else
+        bbb = c.bb
+    end
+    Mechajyo.initBB(bbb)
 
     println("establish server ($(pdict["host"])) port: ", pdict["port"])
 

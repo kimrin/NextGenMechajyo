@@ -261,7 +261,7 @@ function initBB(bb::ContextBB)
             if pc == NO_PIECE
                 continue
             end
-            bb.lineBB[s1+1,s2+1] = (attacks_bb(bb, pc, s1, bitboard(0)) & attacks_bb(bb, pc, s2, bitboard(0)))| bb.SquareBB[s1+1] | bb.SquareBB[s2+1]
+            bb.LineBB[s1+1,s2+1] = (attacks_bb(bb, pc, s1, bitboard(0)) & attacks_bb(bb, pc, s2, bitboard(0)))| bb.SquareBB[s1+1] | bb.SquareBB[s2+1]
             bb.BetweenBB[s1+1,s2+1] = attacks_bb(bb, pc, s1, bb.SquareBB[s2+1]) & attacks_bb(bb, pc, s2, bb.SquareBB[s1+1])
         end
     end

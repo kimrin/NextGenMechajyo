@@ -1,3 +1,6 @@
+const BishopMagicFileName = "Bishop.magic.txt"
+const RookMagicFileName = "Rook.magic.txt"
+
 function sfile_distance(s1::Square, s2::Square)
     int32(abs(sfile_of(s1) - sfile_of(s2)))
 end
@@ -225,6 +228,45 @@ function initBB(bb::SContextBB)
     init_magics(bb, ROOK, bb.RTable, bb.RAttacks, bb.RMagics, bb.RMasks, bb.RShifts, RDeltas)
     init_magics(bb, BISHOP, bb.BTable, bb.BAttacks, bb.BMagics, bb.BMasks, bb.BShifts, BDeltas)
 
+    bb.PseudoAttacks = zeros(SBitboard, SPIECE_TYPE_NB, SSQUARE_NB)
+    bb.LineBB = zeros(SBitboard, SSQUARE_NB, SSQUARE_NB)
+    bb.BetweenBB = zeros(SBitboard, SSQUARE_NB, SSQUARE_NB)
+
+    for s1 = SSQ_A1:SSQ_I9
+        bb.PseudoAttacks[BISHOP+1,s1+1] = attacks_bb(bb, BISHOP, s1, sbitboard(0))
+        #println("PseudoAttacks(BISHOP,$s1):")
+        #println(pretty2(bb,bb.PseudoAttacks[BISHOP+1,s1+1]))
+        bb.PseudoAttacks[QUEEN+1,s1+1]  = attacks_bb(bb, BISHOP, s1, sbitboard(0))
+
+        bb.PseudoAttacks[ROOK+1,s1+1]   = attacks_bb(bb, ROOK,   s1, sbitboard(0))
+        #println("PseudoAttacks(ROOK,$s1):")
+        #println(pretty2(bb,bb.PseudoAttacks[ROOK+1,s1+1]))
+        bb.PseudoAttacks[QUEEN+1,s1+1] |= attacks_bb(bb, ROOK,   s1, sbitboard(0))
+
+        #println("PseudoAttacks($s1):")
+        #println(pretty2(bb,bb.PseudoAttacks[QUEEN+1,s1+1]))
+
+        for s2 = SSQ_A1:SSQ_I9
+            pc = NO_PIECE
+            if (bb.PseudoAttacks[BISHOP+1,s1+1] & bb.SquareBB[s2+1]) > sbitboard(0)
+                pc = W_BISHOP
+            elseif (bb.PseudoAttacks[ROOK+1,s1+1] & bb.SquareBB[s2+1]) > sbitboard(0)
+                pc = W_ROOK
+            end
+
+            if pc == NO_PIECE
+                continue
+            end
+            bb.LineBB[s1+1,s2+1] = (attacks_bb(bb, pc, s1, sbitboard(0)) & attacks_bb(bb, pc, s2, sbitboard(0)))| bb.SquareBB[s1+1] | bb.SquareBB[s2+1]
+            bb.BetweenBB[s1+1,s2+1] = attacks_bb(bb, pc, s1, bb.SquareBB[s2+1]) & attacks_bb(bb, pc, s2, bb.SquareBB[s1+1])
+            
+            #println("LineBB(","$(s1+1),$(s2+1)","):")
+            #println(pretty2(bb,bb.LineBB[s1+1,s2+1]))
+            #println("BetweenBB(","$(s1+1),$(s2+1)","):")
+            #println(pretty2(bb,bb.BetweenBB[s1+1,s2+1]))
+        end
+    end
+
     testBB(bb)
 end
 
@@ -266,6 +308,93 @@ function sliding_attack(bb::SContextBB,
     attack
 end
 
+# LoadMagics loads magic values from plain file(s)
+function LoadMagics(bb::SContextBB, Pt::PieceType)
+    if Pt == ROOK
+        fi = open(RookMagicFileName,"r")
+        bb.RMasks  = deserialize(fi)
+        bb.RMagics = deserialize(fi)
+        bb.RShifts = deserialize(fi)
+        bb.RAttacks= deserialize(fi)
+        close(fi)
+    elseif Pt == BISHOP
+        fi = open(BishopMagicFileName,"r")
+        bb.BMasks  = deserialize(fi)
+        bb.BMagics = deserialize(fi)
+        bb.BShifts = deserialize(fi)
+        bb.BAttacks= deserialize(fi)
+        close(fi)
+    else
+        println("LoadMagics: Illegal Piece Type ($Pt)")
+    end
+end
+
+function SaveArray{T}(fi::IO, a::Array{T,1})
+    println(fi,size(a)[1]) # first line is the size of the array
+    for i = 1:size(a)[1]
+        println(fi,hex(a[i]))
+    end
+end
+
+function SaveArrayOfArray{T}(fi::IO, a::Array{Array{T,1},1},size)
+    println(fi,size) # first line is the size of the array
+    for i = 1:size
+        println("i=$i")
+        ar = a[i]
+        SaveArray(fi, ar)
+        #println(fi,"undef")
+    end
+end
+
+function SaveMagics(bb::SContextBB, Pt::PieceType)
+    if Pt == ROOK
+        fi = open(RookMagicFileName,"w")
+        println(fi, "#RMasks")
+        SaveArray(fi, bb.RMasks)
+        println(fi, "#RMagics")
+        SaveArray(fi, bb.RMagics)
+        println(fi, "#RShifts")
+        SaveArray(fi, bb.RShifts)
+        println(fi, "#RAttacks")
+        SaveArrayOfArray(fi, bb.RAttacks,SSQUARE_NB)
+        close(fi)
+    elseif Pt == BISHOP
+        fi = open(BishopMagicFileName,"w")
+        println(fi, "#BMasks")
+        SaveArray(fi, bb.BMasks)
+        println(fi, "#BMagics")
+        SaveArray(fi, bb.BMagics)
+        println(fi, "#BShifts")
+        SaveArray(fi, bb.BShifts)
+        println(fi, "#BAttacks")
+        SaveArrayOfArray(fi, bb.BAttacks,SSQUARE_NB)
+        close(fi)
+    else
+        println("LoadMagics: Illegal Piece Type ($Pt)")
+    end
+end
+
+function SaveMagicsUsingSerialize(bb::SContextBB, Pt::PieceType)
+    if Pt == ROOK
+        fi = open(RookMagicFileName,"w")
+        serialize(fi, bb.RMasks)
+        serialize(fi, bb.RMagics)
+        serialize(fi, bb.RShifts)
+        serialize(fi, bb.RAttacks)
+        close(fi)
+    elseif Pt == BISHOP
+        fi = open(BishopMagicFileName,"w")
+        serialize(fi, bb.BMasks)
+        serialize(fi, bb.BMagics)
+        serialize(fi, bb.BShifts)
+        serialize(fi, bb.BAttacks)
+        close(fi)
+    else
+        println("LoadMagics: Illegal Piece Type ($Pt)")
+    end
+end
+
+
 # init_magics() computes all rook and bishop attacks at startup. Magic
 # bitboards are used to look up attacks of sliding pieces. As a reference see
 # chessprogramming.wikispaces.com/Magic+Bitboards. In particular, here we
@@ -280,10 +409,19 @@ function init_magics(bb::SContextBB,
                      shifts::Array{Uint32,1},
                      deltas::Array{Square,1})
 
+    if bb.calcMagic == false
+        if Pt == ROOK
+            LoadMagics(bb,ROOK)
+        elseif Pt == BISHOP
+            LoadMagics(bb,BISHOP)
+        end
+        return
+    end
+
 
     # original magic boosters: for RKiss
-    MagicBoosters = Int32[969 1976 2850  542 2069 2852 1708  164;
-                          3101 552 3555  926  834   26 2131 1117]::Array{Int32,2}
+    #MagicBoosters = Int32[969 1976 2850  542 2069 2852 1708  164;
+    #                      3101 552 3555  926  834   26 2131 1117]::Array{Int32,2}
 
     # rk = RKISS()
     occupancy = zeros(SBitboard,65536)
@@ -305,7 +443,7 @@ function init_magics(bb::SContextBB,
         masks[s+1]  = sliding_attack(bb, deltas, s, sbitboard(0)) & ~edges
         shifts[s+1] = 81 - popcount(masks[s+1]) # uncertainly...
 
-        #println("s=",s)
+        println("s=",s)
         #println("shifts=", shifts[s+1])
         #println(pretty2(bb,masks[s+1]))
 
@@ -325,7 +463,7 @@ function init_magics(bb::SContextBB,
             b = (b - masks[s+1]) & masks[s+1]
         end
 
-        #println("size=",size)
+        println("size=",size)
 
         # Set the offset for the table of the next square. We have individual
         # table sizes for each square with "Fancy Magic Bitboards".
@@ -335,7 +473,7 @@ function init_magics(bb::SContextBB,
         if (s < SSQ_I9)
             attacks[s+1+1] = zeros(SBitboard,size)
         end
-        booster = int32(1023) # MagicBoosters[Is64Bit?2:1,rank_of(s)+1] # calculate in later...
+        booster = int32(0) # MagicBoosters[Is64Bit?2:1,rank_of(s)+1] # calculate in later...
 
         # Find a magic for square 's' picking up an (almost) random number
         # until we find the one that passes the verification test.
@@ -359,6 +497,8 @@ function init_magics(bb::SContextBB,
                     break
                 end
                 attack = reference[i+1]
+                (attacks[s+1])[magic_index(bb, Pt, s, occupancy[i+1]) + 1] = reference[i+1]
+                #println("idx=",idx,"/",size)
             end
             if idx == (size-1)
                 idx = size
@@ -382,7 +522,8 @@ function init_magics(bb::SContextBB,
                     break
                 end
                 attack = reference[i+1]
-                #println("idx=",idx)
+                (attacks[s+1])[magic_index(bb, Pt, s, occupancy[i+1]) + 1] = reference[i+1]
+                #println("idx=",idx,"/",size)
             end
             if idx == (size-1)
                 idx = size
@@ -390,4 +531,5 @@ function init_magics(bb::SContextBB,
             end
         end
     end
+    SaveMagicsUsingSerialize(bb, Pt)
 end
