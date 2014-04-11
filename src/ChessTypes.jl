@@ -130,13 +130,13 @@ const B_QUEEN   = int32(13)
 const B_KING    = int32(14)
 const PIECE_NB  = int32(16)
 
-typealias Color Int32
-color = int32
+typealias Color Int8 # changed from Int32
+color = int8
 
-const WHITE    = int32(0)
-const BLACK    = int32(1)
-const NO_COLOR = int32(2)
-const COLOR_NB = int32(2)
+const WHITE    = int8(0)
+const BLACK    = int8(1)
+const NO_COLOR = int8(2)
+const COLOR_NB = int64(2) # may be use as array index...
 
 typealias Depth Int32
 const ONE_PLY = int32(2)

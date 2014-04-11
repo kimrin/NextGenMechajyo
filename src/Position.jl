@@ -26,6 +26,7 @@ end
 
 type SStateInfo # for Shogi
     # may be nothing without followings...
+    checkersBB::Bitboard
     capturedType::PieceType
     previous::SStateInfo
     function SStateInfo()
@@ -502,6 +503,10 @@ function set(sbb::SContextBB, p::SPosition, sfen::ASCIIString, t::ThreadNumber)
     end
 end
 
+function set_state(pos::SPosition, bb::SContextBB, si::StateInfo)
+    # calculations for Zobrist are omitted
+    si.checkersBB = attackers_to(pos, bb, king_square(pos.sideToMove)) & pieces(sideToMove$1)
+end
 
 function put_piece(sbb::SContextBB, sp::SPosition, s::Square, c::Color, pt::PieceType)
     sp.board[s+1]               = smake_piece( c, pt)
@@ -513,8 +518,150 @@ function put_piece(sbb::SContextBB, sp::SPosition, s::Square, c::Color, pt::Piec
     sp.pieceList[c+1,pt+1,sp.index[s+1]+1] = s
 end
 
+function nodes_searched(p::SPosition)
+    p.nodes
+end
+
+function set_nodes_searched(s::SPosition, n::Uint64)
+    p.nodes = n
+end
+
+function piece_on(sp::SPosition, s::Square)
+    sp.board[s+1]
+end
+
+function moved_piece(sp::SPosition, m::SMove)
+    sp.board[from_sq(m)]
+end
+
+function empty(sp::SPosition, s::Square)
+    sp.board[s+1] == NO_PIECE
+end
+
+function side_to_move(sp::SPosition)
+    sp.sideToMove
+end
+
+# following pieces functions returns SBitboard
+
+function pieces(sp::SPosition)
+    sp.byTypeBB[SALL_PIECES+1]
+end
+
+function pieces(sp::SPosition, pt::PieceType)
+    sp.byTypeBB[pt+1]
+end
+
+function pieces(sp::SPosition, pt1::PieceType, pt2::PieceType)
+    sp.byTypeBB[pt1+1] | sp.byTypeBB[pt2+1]
+end
+
+function pieces(sp::SPosition, c::Color)
+    sp.byColorBB[c+1]
+end
+
+function pieces(sp::SPosition, c::Color, pt::PieceType)
+    sp.byColorBB[c+1] & sp.byTypeBB[pt+1]
+end
+
+function pieces(sp::SPosition, c::Color, pt1::PieceType, pt2::PieceType)
+    sp.byColorBB[c+1] & (sp.byTypeBB[pt1+1] | sp.byTypeBB[pt2+1])
+end
+
+function count(sp::SPosition, c::Color, pt::PieceType)
+    sp.pieceCount[c+1,pt+1]
+end
+
+# in Julialang, no need to investigate array length by count() before touch the list:
+# actual lists have their sizes. (returns one dimensional array)
+function list(sp::SPosition, c::Color, pt::PieceType)
+    collect(sp.pieceList[c+1,pt+1,1:sp.pieceCount[c+1,pt+1]+1])
+end
+
+function king_square(sp::SPosition, c::Color)
+    sp.PieceList[c+1,OU,1]
+end
+
+# dummy is ... dummy argument!
+function attacks_from(sp::SPosition, bb::SContextBB, pt::PieceType, s::Square, dummy::Bool)
+    if (pt == KA || pt == HI)
+        return attacks_bb(bb, pt, s, sp.byTypeBB[SALL_PIECES+1], true)
+    else
+        println("This function must call with piece type = KA or HI!")
+        return sbitboard(0)
+    end
+end
+
+function attacks_from(sp::SPosition, bb::SContextBB, p::Piece, s::Square)
+    attacks_bb(bb, p, s, sp.byTypeBB[SALL_PIECES+1])
+end
+
+function attackers_to(sp::SPosition, bb::SContextBB, s::Square)
+    attacks_to(sp, bb, s, sp.byTypeBB[SALL_PIECES+1])
+end
+
+# Position::attackers_to() computes a bitboard of all pieces which attack a
+# given square. Slider attacks use the occ bitboard to indicate occupancy.
+function attackers_to(sp::SPosition, bb::SContextBB, s::Square, occ::SBitboard)
+    sum = sbitboard(0)
+    for c = WHITE:BLACK
+        for pt = FU:RY
+            p = smake_piece(c,p)
+            sum |= attackers_from(sp, bb, p, s) & pieces(c, pt)
+        end
+        sum |= attacks_bb(bb, HI, s, occ, true) & pieces(HI)
+        sum |= attacks_bb(bb, KA, s, occ, true) & pieces(KA)
+        sum |= attacks_bb(bb, KY, s, occ, true) & pieces(KY)
+        
+    end
+    sum
+end
+
+# for first SFEN placements
 function put_piece_in_komadai(sp::SPosition, c::Color, pt::PieceType, n::Int)
     sp.capturedPieces[c+1,pt+1] = int32(n)
 end
 
+function put_piece_in_komadai(sp::SPosition, c::Color, pt::PieceType)
+    sp.capturedPieces[c+1,pt+1] = int32(sp.capturedPieces[c+1,pt+1] + 1) 
+end
 
+function remove_piece_from_komadai(sp::SPosition, c::Color, pt::PieceType)
+    num = sp.capturedPieces[c+1,pt+1] - 1
+    if num < 0
+        println("!!!underflow komadai!!!")
+        return
+    end
+    sp.capturedPieces[c+1,pt+1] = int32(num)
+end
+
+function move_piece(sbb::SContextBB, sp::SPosition, from::Square, to::Square, c::Color, pt::PieceType)
+    # index[from] is not updated and becomes stale. This works as long
+    # as index[] is accessed just by known occupied squares.
+
+    from_to_bb = sbb.SquareBB[from+1] $ sbb.SquareBB[to+1]
+    sp.byTypeBB[SALL_PIECES+1] $= from_to_bb
+    sp.byTypeBB[pt+1] $= from_to_bb
+    sp.byColorBB[c+1] $= from_to_bb
+    sp.board[from+1] = NO_PIECE
+    sp.board[to+1]   = smake_piece(c, pt)
+    sp.index[to+1]   = sp.index[from+1]
+    sp.pieceList[c+1,pt+1,sp.index[to]+1] = to
+end
+
+function remove_piece(sbb::SContextBB, sp::SPosition, s::Square, c::Color, pt::PieceType)
+    # WARNING: This is not a reversible operation. If we remove a piece in
+    # do_move() and then replace it in undo_move() we will put it at the end of
+    # the list and not in its original place, it means index[] and pieceList[]
+    # are not guaranteed to be invariant to a do_move() + undo_move() sequence.
+    sp.byTypeBB[SALL_PIECES+1] $= sbb.SquareBB[s+1]
+    sp.byTypeBB[pt+1] $= sbb.SquareBB[s+1]
+    sp.byColorBB[c+1] $= sbb.SquareBB[s+1]
+    sp.board[s+1] = NO_PIECE # Not needed, will be overwritten by capturing
+    pieceC = int32(sp.pieceCount[c+1,pt+1] - 1)
+    sp.pieceCount[c+1,pt+1] = pc
+    lastSquare = sp.pieceList[c+1,pt+1,pc+1]
+    sp.index[lastSquare+1] = sp.index[s+1]
+    sp.pieceList[c+1,pt+1,sp.index[lastSquare+1]] = lastSquare
+    sp.pieceList[c+1,pt+1,pieceC+1] = SSQ_NONE
+end

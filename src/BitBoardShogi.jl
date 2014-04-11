@@ -228,20 +228,22 @@ function initBB(bb::SContextBB)
     init_magics(bb, ROOK, bb.RTable, bb.RAttacks, bb.RMagics, bb.RMasks, bb.RShifts, RDeltas)
     init_magics(bb, BISHOP, bb.BTable, bb.BAttacks, bb.BMagics, bb.BMasks, bb.BShifts, BDeltas)
 
+    # PseudoAttacks remain index = ROOK, BISHOP, and QUEEN (QUEEN is actuall not used)
+    # but attacks_bb is using Shogi Pieces Notation (HI,KA)
     bb.PseudoAttacks = zeros(SBitboard, SPIECE_TYPE_NB, SSQUARE_NB)
     bb.LineBB = zeros(SBitboard, SSQUARE_NB, SSQUARE_NB)
     bb.BetweenBB = zeros(SBitboard, SSQUARE_NB, SSQUARE_NB)
 
     for s1 = SSQ_A1:SSQ_I9
-        bb.PseudoAttacks[BISHOP+1,s1+1] = attacks_bb(bb, BISHOP, s1, sbitboard(0))
+        bb.PseudoAttacks[BISHOP+1,s1+1] = attacks_bb(bb, KA, s1, sbitboard(0))
         #println("PseudoAttacks(BISHOP,$s1):")
         #println(pretty2(bb,bb.PseudoAttacks[BISHOP+1,s1+1]))
-        bb.PseudoAttacks[QUEEN+1,s1+1]  = attacks_bb(bb, BISHOP, s1, sbitboard(0))
+        bb.PseudoAttacks[QUEEN+1,s1+1]  = attacks_bb(bb, KA, s1, sbitboard(0))
 
-        bb.PseudoAttacks[ROOK+1,s1+1]   = attacks_bb(bb, ROOK,   s1, sbitboard(0))
+        bb.PseudoAttacks[ROOK+1,s1+1]   = attacks_bb(bb, HI,   s1, sbitboard(0))
         #println("PseudoAttacks(ROOK,$s1):")
         #println(pretty2(bb,bb.PseudoAttacks[ROOK+1,s1+1]))
-        bb.PseudoAttacks[QUEEN+1,s1+1] |= attacks_bb(bb, ROOK,   s1, sbitboard(0))
+        bb.PseudoAttacks[QUEEN+1,s1+1] |= attacks_bb(bb, HI,   s1, sbitboard(0))
 
         #println("PseudoAttacks($s1):")
         #println(pretty2(bb,bb.PseudoAttacks[QUEEN+1,s1+1]))
@@ -249,9 +251,9 @@ function initBB(bb::SContextBB)
         for s2 = SSQ_A1:SSQ_I9
             pc = NO_PIECE
             if (bb.PseudoAttacks[BISHOP+1,s1+1] & bb.SquareBB[s2+1]) > sbitboard(0)
-                pc = W_BISHOP
+                pc = W_KA
             elseif (bb.PseudoAttacks[ROOK+1,s1+1] & bb.SquareBB[s2+1]) > sbitboard(0)
-                pc = W_ROOK
+                pc = W_HI
             end
 
             if pc == NO_PIECE
@@ -281,9 +283,23 @@ function magic_index(bb::SContextBB, Pt::PieceType, s::Square, occ::SBitboard)
     uint((((occ & Masks[s+1]) * Magics[s+1]) & MaskOfBoard) >>> Shifts[s+1])
 end
 
-function attacks_bb(bb::SContextBB, Pt::PieceType, s::Square, occ::SBitboard)
-    ar = (Pt == ROOK ? bb.RAttacks : bb.BAttacks)
+# isSliding is only for distinguish from attacks_bb(4)
+function attacks_bb(bb::SContextBB, Pt::PieceType, s::Square, occ::SBitboard, isSliding::Bool)
+    ar = (Pt == HI ? bb.RAttacks : bb.BAttacks)
     (ar[s+1])[magic_index(bb, Pt, s, occ)+1]
+end
+
+function attacks_bb(bb::SContextBB, p::Piece, s::Square, occ::SBitboard)
+    t = stype_of(p)
+    if t == KA
+        return attacks_bb(bb, KA, s, occ, true)
+    elseif t == HI
+        return attacks_bb(bb, HI, s, occ, true)
+    elseif t == KY # for KyouSha, only forward attacks are enabled
+        return attacks_bb(bb, HI, s, occ, true)&bb.ForwardBB[scolor_of(p)+1,s+1]
+    else
+        return bb.StepAttacksBB[p+1,s+1]
+    end
 end
 
 function sliding_attack(bb::SContextBB,

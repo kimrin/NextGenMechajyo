@@ -190,7 +190,7 @@ const SSQ_G9 = int32(78)
 const SSQ_H9 = int32(79)
 const SSQ_I9 = int32(80)
 const SSQ_NONE = int32(81)
-
+const SSQ_DROP = int32(82)
 const SSQUARE_NB = int32(81)
 
 const SDELTA_N =  int32(9)
@@ -232,6 +232,10 @@ end
 
 function sis_ok(s::Square)
     bool((s >= SSQ_A1) && (s <= SSQ_I9))
+end
+
+function sis_ok_with_drop(s::Square)
+    bool((s >= SSQ_A1) && (s <= SSQ_DROP))
 end
 
 function sfile_of(s::Square)

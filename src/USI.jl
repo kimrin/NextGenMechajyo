@@ -79,6 +79,9 @@ function mainLoop(bbb::SContextBB, uci::USI, omap::OptionMap, sock::Base.TcpSock
 
     mov = false ? make(squareC(20), squareC(29), FU, uint32(0), pieceType(0)): SMOVE_NULL # if true, make +7776FU
 
+    # move piece from 77 to 76 (+FU)
+    move_piece(bbb, pos, squareC(20), squareC(29), WHITE, FU)
+
     # print board!
     pretty(pos,mov)
 
