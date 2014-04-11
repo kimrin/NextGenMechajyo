@@ -75,9 +75,9 @@ function mainLoop(bbb::SContextBB, uci::USI, omap::OptionMap, sock::Base.TcpSock
     # Position pos(StartFEN, false, Threads.main()); // The root position
     pos = SPosition(bbb, StartSFEN, threadNumber(0))
     #pos = SPosition(bbb, FestivalSFEN, threadNumber(0))
-    pos = SPosition(bbb, NanaRokuFUSFEN, threadNumber(0))
+    #pos = SPosition(bbb, NanaRokuFUSFEN, threadNumber(0))
 
-    mov = true ? make(squareC(20), squareC(29), FU, uint32(0), pieceType(0)): SMOVE_NULL
+    mov = false ? make(squareC(20), squareC(29), FU, uint32(0), pieceType(0)): SMOVE_NULL # if true, make +7776FU
 
     # print board!
     pretty(pos,mov)
@@ -146,6 +146,7 @@ function mainLoop(bbb::SContextBB, uci::USI, omap::OptionMap, sock::Base.TcpSock
             # benchmark(pos, is);
         elseif token == "d"
             # pos.pretty()
+            pretty(pos,SMOVE_NULL)
         elseif token == "isready"
             println(sock, "readyok")
         else

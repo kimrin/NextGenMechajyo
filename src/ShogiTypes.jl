@@ -282,7 +282,8 @@ function smake_move(from::Square, to::Square)
     smove(to | (from << 8))
 end
 
-function make(from::Square, to::Square, p::Piece, flag::Uint32, capt::PieceType) # re-arrange function list! Also not included &ing with masks!
+function make(from::Square, to::Square, p::Piece, flag::Uint32, capt::PieceType)
+    # re-arrange function list! Also not included and-ing with masks!
     smove(to | (from << 8) | (p << 16) | (flag << 24) | (capt << 28))
 end
 

@@ -109,6 +109,9 @@ type SPosition
     end
 end
 
+# 64bit hash function of the position (SPosition)
+hash(p::SPosition) = hash(p.board)$hash(p.capturedPieces)$hash(p.sideToMove)
+
 const MOCHISTR = UTF8String["歩",
                             "香",
                             "桂",
