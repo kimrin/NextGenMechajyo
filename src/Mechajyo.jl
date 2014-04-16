@@ -36,6 +36,7 @@ include("BitCount.jl")
 include("BitBoards.jl")
 include("Globals.jl")
 include("Position.jl")
+include("MoveGen.jl")
 
 include("UCI.jl")
 include("USI.jl")

@@ -26,11 +26,11 @@ end
 
 type SStateInfo # for Shogi
     # may be nothing without followings...
-    checkersBB::Bitboard
+    checkersBB::SBitboard
     capturedType::PieceType
     previous::SStateInfo
     function SStateInfo()
-        new()
+        new(sbitboard(0),NO_PIECE_TYPE)
     end
 end
 
@@ -73,8 +73,8 @@ end
 type SPosition
     # Board and pieces
     board::Array{Piece,1}
-    byTypeBB::Array{Bitboard,1}
-    byColorBB::Array{Bitboard,1}
+    byTypeBB::Array{SBitboard,1}
+    byColorBB::Array{SBitboard,1}
     pieceCount::Array{Int32,2}
     pieceList::Array{Square,3}
     index::Array{Int32,1}
@@ -82,12 +82,12 @@ type SPosition
     capturedPieces::Array{Int32,2} # color and pieceType(from FU to OU)
 
     # Other info
-    startState::StateInfo
+    startState::SStateInfo
     nodes::Uint64
     gamePly::Int32
     sideToMove::Color
     thisThread::ThreadNumber
-    st::StateInfo
+    st::SStateInfo
 
     function SPosition(p::Position, t::ThreadNumber)
         p.thisThread = t
@@ -101,11 +101,52 @@ type SPosition
         n.byTypeBB = zeros(SBitboard, SPIECE_TYPE_NB+1)
         n.byColorBB = zeros(SBitboard, COLOR_NB)
         n.pieceCount = zeros(Int32, COLOR_NB, SPIECE_TYPE_NB)
-        n.pieceList = zeros(Square, COLOR_NB, SPIECE_TYPE_NB, 40)
+        n.pieceList = zeros(Square, 41, SPIECE_TYPE_NB, COLOR_NB) # reverse order (column-maj)
         n.index    =  zeros(Int32, SSQUARE_NB)
         n.capturedPieces = zeros(Int32,COLOR_NB,SPIECE_TYPE_NB)
 
         set( sbb, n, sf, t)
+        n
+    end
+end
+
+# The checkInfo struct is initialized at c'tor time and keeps info used
+# to detect if a move gives check.
+type SCheckInfo
+    dcCandidates::SBitboard
+    pinned::SBitboard
+    checkSq::Array{SBitboard,1}
+    ksq::Square
+
+    # CheckInfo c'tor
+    function SCheckInfo(pos::SPosition, bb::SContextBB)
+        n = new()
+        them = side_to_move(pos)$1
+        n.ksq = king_square(pos,them)
+        ksq = n.ksq
+
+        n.pinned = pinned_pieces(pos, side_to_move(pos))
+        n.dcCandidates = discovered_check_candidates(pos)
+
+        n.checkSq[FU] = attacks_from(pos, bb, smake_piece(them,FU), ksq)
+        n.checkSq[KE] = attacks_from(pos, bb, smake_piece(them,KE), ksq)
+        n.checkSq[GI] = attacks_from(pos, bb, smake_piece(them,GI), ksq)
+        n.checkSq[KI] = attacks_from(pos, bb, smake_piece(them,KI), ksq)
+        n.checkSq[OU] = sbitboard(0)
+        n.checkSq[TO] = attacks_from(pos, bb, smake_piece(them,TO), ksq)
+        n.checkSq[NY] = attacks_from(pos, bb, smake_piece(them,NY), ksq)
+        n.checkSq[NK] = attacks_from(pos, bb, smake_piece(them,NK), ksq)
+        n.checkSq[NG] = attacks_from(pos, bb, smake_piece(them,NG), ksq)
+        n.checkSq[UM] = attacks_from(pos, bb, smake_piece(them,UM), ksq)
+        n.checkSq[RY] = attacks_from(pos, bb, smake_piece(them,RY), ksq)
+
+        # sliding pieces
+        n.checkSq[KY] = attacks_from(pos, bb, smake_piece(them,KY), ksq, true)
+        n.checkSq[KA] = attacks_from(pos, bb, smake_piece(them,KA), ksq, true)
+        n.checkSq[HI] = attacks_from(pos, bb, smake_piece(them,HI), ksq, true)
+        n.checkSq[UM] |= n.checkSq[KA]
+        n.checkSq[RY] |= n.checkSq[HI]
+
         n
     end
 end
@@ -168,6 +209,22 @@ const KOMASTR = UTF8String["歩　",
                            "成金",
                            "馬　",
                            "龍　"]::Array{UTF8String,1}
+
+const KOMASTR_SHORT = UTF8String["歩",
+                                 "香",
+                                 "桂",
+                                 "銀",
+                                 "金",
+                                 "角",
+                                 "飛",
+                                 "王",
+                                 "と",
+                                 "成香",
+                                 "成桂",
+                                 "成銀",
+                                 "成金",
+                                 "馬",
+                                 "龍"]::Array{UTF8String,1}
 
 const DANSTR = UTF8String["一",
                           "二",
@@ -501,11 +558,12 @@ function set(sbb::SContextBB, p::SPosition, sfen::ASCIIString, t::ThreadNumber)
             numberOfMochi = 0
         end
     end
+    set_state(p, sbb, SStateInfo())
 end
 
-function set_state(pos::SPosition, bb::SContextBB, si::StateInfo)
+function set_state(pos::SPosition, bb::SContextBB, si::SStateInfo)
     # calculations for Zobrist are omitted
-    si.checkersBB = attackers_to(pos, bb, king_square(pos.sideToMove)) & pieces(sideToMove$1)
+    si.checkersBB = pieces(pos, int8(pos.sideToMove$1)) & attackers_to(pos, bb, king_square(pos, pos.sideToMove)) 
 end
 
 function put_piece(sbb::SContextBB, sp::SPosition, s::Square, c::Color, pt::PieceType)
@@ -515,7 +573,7 @@ function put_piece(sbb::SContextBB, sp::SPosition, s::Square, c::Color, pt::Piec
     sp.byColorBB[c+1]          |= sbb.SquareBB[s+1]
     sp.index[s+1]               = sp.pieceCount[c+1,pt+1]
     sp.pieceCount[c+1,pt+1] += 1
-    sp.pieceList[c+1,pt+1,sp.index[s+1]+1] = s
+    sp.pieceList[sp.index[s+1]+1,pt+1,c+1] = s
 end
 
 function nodes_searched(p::SPosition)
@@ -575,16 +633,59 @@ end
 # in Julialang, no need to investigate array length by count() before touch the list:
 # actual lists have their sizes. (returns one dimensional array)
 function list(sp::SPosition, c::Color, pt::PieceType)
-    collect(sp.pieceList[c+1,pt+1,1:sp.pieceCount[c+1,pt+1]+1])
+    sp.pieceList[1:sp.pieceCount[c+1,pt+1],pt+1,c+1]
 end
 
 function king_square(sp::SPosition, c::Color)
-    sp.PieceList[c+1,OU,1]
+    sp.pieceList[1, OU+1, c+1]
+end
+
+function checkers(st::SStateInfo)
+    st.checkersBB
+end
+
+# Position::check_blockers() returns a bitboard of all the pieces with color
+# 'c' that are blocking check on the king with color 'kingColor'. A piece
+# blocks a check if removing that piece from the board would result in a
+# position where the king is in check. A check blocking piece can be either a
+# pinned or a discovered check piece, according if its color 'c' is the same
+# or the opposite of 'kingColor'.
+
+function check_blockers(pos::SPosition, bb::SContextBB, c::Color, kingColor::Color)
+    b       = sbitboard(0)
+    pinners = sbitboard(0)
+    result  = sbitboard(0)
+    ksq = king_square(pos, kingColor)
+
+    # Pinners are sliders that give check when a pinned piece is removed
+
+    # TODO: Should be verifing in another times!
+    pinners = (pieces(pos,HI) & bb.PseudoAttacks[ROOK+1][ksq+1]
+               | pieces(pos,KA) & bb.PseudoAttacks[BISHOP+1][ksq+1]
+               | pieces(pos,KY) & bb.PseudoAttacks[ROOK+1][ksq+1] # bb.ForwardBB is needed
+               | pieces(pos,RY) & bb.PseudoAttacks[ROOK+1][ksq+1]
+               | pieces(pos,UM) & bb.PseudoAttacks[BISHOP+1][ksq+1]) & pieces(pos,kingColor$1)
+
+    while (pinners > sbitboard(0))
+        b = between_bb(bb, ksq, pop_lsb(pinners)) & pieces(pos)
+        if !move_than_one(b)
+            result |= b & pieces(c)
+        end
+    end
+    result
+end
+
+function discovered_check_candidates(pos::SPosition, bb::SContextBB)
+    check_blockers(pos, bb, pos.sideToMove, pos.sideToMove$1)
+end
+
+function pinned_pieces(pos::SPosition, bb::SContextBB, c::Color)
+    check_blockers(pos, bb, c, c)
 end
 
 # dummy is ... dummy argument!
 function attacks_from(sp::SPosition, bb::SContextBB, pt::PieceType, s::Square, dummy::Bool)
-    if (pt == KA || pt == HI)
+    if (pt == KA || pt == HI || pt == KY)
         return attacks_bb(bb, pt, s, sp.byTypeBB[SALL_PIECES+1], true)
     else
         println("This function must call with piece type = KA or HI!")
@@ -597,7 +698,7 @@ function attacks_from(sp::SPosition, bb::SContextBB, p::Piece, s::Square)
 end
 
 function attackers_to(sp::SPosition, bb::SContextBB, s::Square)
-    attacks_to(sp, bb, s, sp.byTypeBB[SALL_PIECES+1])
+    attackers_to(sp, bb, s, sp.byTypeBB[SALL_PIECES+1])
 end
 
 # Position::attackers_to() computes a bitboard of all pieces which attack a
@@ -606,15 +707,97 @@ function attackers_to(sp::SPosition, bb::SContextBB, s::Square, occ::SBitboard)
     sum = sbitboard(0)
     for c = WHITE:BLACK
         for pt = FU:RY
-            p = smake_piece(c,p)
-            sum |= attackers_from(sp, bb, p, s) & pieces(c, pt)
+            p = smake_piece(c,pt)
+            sum |= attacks_from(sp, bb, p, s) & pieces(sp, c, pt)
         end
-        sum |= attacks_bb(bb, HI, s, occ, true) & pieces(HI)
-        sum |= attacks_bb(bb, KA, s, occ, true) & pieces(KA)
-        sum |= attacks_bb(bb, KY, s, occ, true) & pieces(KY)
+        sum |= attacks_bb(bb, HI, s, occ, true) & pieces(sp, HI)
+        sum |= attacks_bb(bb, KA, s, occ, true) & pieces(sp, KA)
+        sum |= attacks_bb(bb, KY, s, occ, true) & pieces(sp, KY)
         
     end
+    println(pretty2(bb, sum))
     sum
+end
+
+# Position::legal() tests whether a pseudo-legal move is legal
+
+function legal(pos::SPosition, bb::SContextBB, m::SMove, pinned::SBitboard)
+    us = pos.sideToMove
+    from = from_sq(m)
+
+    # If the moving piece is a king, check whether the destination
+    # square is attacked by the opponent. Castling moves are checked
+    # for legality during move generation.
+    if stype_of(piece_on(pos, from)) == OU
+        return false || ((attackers_to(pos,bb,to_sq(m) & pieces(us$1))) == sbitboard(0))
+    end
+
+    # A non-king move is legal if and only if it is not pinned or it
+    # is moving along the ray towards or away from the king.
+    return (pinned == sbitboard(0)
+            || (pinned & bb.SquareBB[from+1]) == sbitboard(0)
+            || aligned(from, to_sq(m), king_square(pos, us)))
+end
+
+# Position::pseudo_legal() takes a random move and tests whether the move is
+# pseudo legal. It is used to validate moves from TT that can be corrupted
+# due to SMP concurrent access or hash position key aliasing.
+function pseudo_legal(pos::SPosition, bb::SContextBB, st::SStateInfo, m::SMove)
+    us = pos.sideToMove
+    from = from_sq(m)
+    to   = to_sq(m)
+    pc   = moved_piece(pos, m)
+
+    # Use a slower but simpler function for uncommon cases
+    if type_of(m) != NORMAL
+      return contains(SMoveList(pos, LEGAL),m)
+    end
+
+    # Is not a promotion, so promotion piece must be empty
+    # if (promotion_type(m) - 2 != NO_PIECE_TYPE)
+    #  return false;
+    # not implemented...
+
+    # If the 'from' square is not occupied by a piece belonging to the side to
+    # move, the move is obviously not legal.
+    if pc == NO_PIECE || scolor_of(pc) != us
+      return false
+    end
+
+    # The destination square cannot be occupied by a friendly piece
+    if pieces(us) & bb.SquareBB[to+1]
+      return false
+    end
+
+    # Handle the special case of a pawn move
+    if stype_of(pc) == FU
+        # not implemented...
+    elseif attacks_from(pos, bb, pc, from) == sbitboard(0)
+        return false
+    end
+
+    # Evasions generator already takes care to avoid some kind of illegal moves
+    # and legal() relies on this. We therefore have to take care that the same
+    # kind of moves are filtered out here.
+    if checkers(st) > sbitboard(0)
+        if stype_of(pc) != OU
+            # Double check? In this case a king move is required
+            if more_than_one(checkers(st))
+                return false
+            end
+            
+            # Our move must be a blocking evasion or a capture of the checking piece
+            if (((between_bb(bb, lsb(checkers(st)), king_square(pos, us)) | checkers(st)) & bb.SquareBB[to+1]) == sbitboard(0))
+                return false
+            end
+            # In case of king moves under check we have to remove king so as to catch
+            # invalid moves like b1a1 when opposite queen is on c1.
+        elseif attackers_to(pos, bb, to, pieces(pos) $ bb.SquareBB[from+1]) & pieces(us$1)
+            return false
+        end
+    end
+
+    true
 end
 
 # for first SFEN placements
@@ -646,7 +829,7 @@ function move_piece(sbb::SContextBB, sp::SPosition, from::Square, to::Square, c:
     sp.board[from+1] = NO_PIECE
     sp.board[to+1]   = smake_piece(c, pt)
     sp.index[to+1]   = sp.index[from+1]
-    sp.pieceList[c+1,pt+1,sp.index[to]+1] = to
+    sp.pieceList[sp.index[to]+1,pt+1,c+1] = to
 end
 
 function remove_piece(sbb::SContextBB, sp::SPosition, s::Square, c::Color, pt::PieceType)
@@ -660,8 +843,8 @@ function remove_piece(sbb::SContextBB, sp::SPosition, s::Square, c::Color, pt::P
     sp.board[s+1] = NO_PIECE # Not needed, will be overwritten by capturing
     pieceC = int32(sp.pieceCount[c+1,pt+1] - 1)
     sp.pieceCount[c+1,pt+1] = pc
-    lastSquare = sp.pieceList[c+1,pt+1,pc+1]
+    lastSquare = sp.pieceList[oc+1,pt+1,c+1]
     sp.index[lastSquare+1] = sp.index[s+1]
-    sp.pieceList[c+1,pt+1,sp.index[lastSquare+1]] = lastSquare
-    sp.pieceList[c+1,pt+1,pieceC+1] = SSQ_NONE
+    sp.pieceList[sp.index[lastSquare+1],pt+1,c+1,] = lastSquare
+    sp.pieceList[pieceC+1,pt+1,c+1] = SSQ_NONE
 end

@@ -21,7 +21,7 @@ sbitboard = uint128
 
 const MaskOfBoard = parseint(Uint128,"1ffffffffffffffffffff",16)::Uint128
 
-const MAX_MOVES      = int32(256)
+const MAX_MOVES      = int32(700) # max shogi available moves = about 640moves!
 const MAX_PLY        = int32(120)
 const MAX_PLY_PLUS_6 = int32(MAX_PLY + 6)
 

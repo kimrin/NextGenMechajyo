@@ -44,6 +44,24 @@ function adjacent_files_bb(bb::SContextBB, f::File)
     bb.AdjacentFilesBB[f+1]
 end
 
+
+# between_bb() returns a bitboard representing all squares between two squares.
+# For instance, between_bb(SQ_C4, SQ_F7) returns a bitboard with the bits for
+# square d5 and e6 set.  If s1 and s2 are not on the same rank, file or diagonal,
+# 0 is returned.
+function between_bb(bb::SContextBB, s1::Square, s2::Square)
+    bb.BetweenBB[s1+1,s2+1]
+end
+
+# forward_bb() takes a color and a square as input, and returns a bitboard
+# representing all squares along the line in front of the square, from the
+# point of view of the given color. Definition of the table is:
+# ForwardBB[c][s] = in_front_bb(c, s) & file_bb(s)
+
+function forward_bb(bb::SContextBB, c::Color, s::Square)
+    bb.ForwardBB[c+1,s+1]
+end
+
 # /// Bitboards::pretty() returns an ASCII representation of a bitboard to be
 # /// printed to standard output. This is sometimes useful for debugging.
 function pretty(bb::SContextBB, b::SBitboard)
@@ -72,7 +90,17 @@ function pretty2(bb::SContextBB, b::SBitboard)
     s
 end
 
-function lsb(bb::SContextBB, b::SBitboard)
+# lsb()/msb() finds the least/most significant bit in a non-zero bitboard.
+# pop_lsb() finds and clears the least significant bit in a non-zero bitboard.
+
+function pos_lsb(b::SBitboard)
+    bb = b
+    b = bb & (sbitboard(bb - 1))
+
+    trailing_zeros(b)
+end
+
+function lsb(b::SBitboard)
     trailing_zeros(b)
 end
 
@@ -272,9 +300,15 @@ function initBB(bb::SContextBB)
     testBB(bb)
 end
 
-# /// Functions for computing sliding attack bitboards. Function attacks_bb() takes
-# /// a square and a bitboard of occupied squares as input, and returns a bitboard
-# /// representing all squares attacked by Pt (bishop or rook) on the given square.
+# aligned() returns true if the squares s1, s2 and s3 are aligned
+# either on a straight or on a diagonal line.
+function aligned(bb::SContextBB, s1::Square, s2::Square, s3::Square)
+    bb.LineBB[s1+1,s2+1] & bb.SquareBB[s3+1]
+end
+
+# Functions for computing sliding attack bitboards. Function attacks_bb() takes
+# a square and a bitboard of occupied squares as input, and returns a bitboard
+# representing all squares attacked by Pt (bishop or rook) on the given square.
 function magic_index(bb::SContextBB, Pt::PieceType, s::Square, occ::SBitboard)
     Masks  = (Pt == ROOK)? bb.RMasks: bb.BMasks
     Magics = (Pt == ROOK)? bb.RMagics: bb.BMagics
