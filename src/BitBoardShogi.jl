@@ -93,11 +93,12 @@ end
 # lsb()/msb() finds the least/most significant bit in a non-zero bitboard.
 # pop_lsb() finds and clears the least significant bit in a non-zero bitboard.
 
-function pos_lsb(b::SBitboard)
+function pop_lsb(b::SBitboard)
     bb = b
+    ret = trailing_zeros(b)
     b = bb & (sbitboard(bb - 1))
 
-    trailing_zeros(b)
+    ret, b
 end
 
 function lsb(b::SBitboard)

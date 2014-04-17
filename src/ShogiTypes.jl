@@ -279,7 +279,8 @@ function type_of(m::SMove)
 end
 
 function promotion_type(m::SMove) # in Shogi, promotion type is identical to piece type
-    PieceType(((m >> 25) & 0x1 == 0x1) ? (m >> 16) & 0xf: 0)
+    # pieceType(((m >> 25) & 0x1 == 0x1) ? (m >> 16) & 0xf: 0)
+    pieceType((m >>> 16) & 0xf)
 end
 
 function smake_move(from::Square, to::Square)
@@ -299,4 +300,19 @@ function ssquare_to_string(s::Square)
     fi = file_to_char(sfile_of(s))
     ra = rank_to_char(srank_of(s))
     "$(fi)$(ra)"
+end
+
+function ssquare_to_suji_str(s::Square)
+    char(FILE_I - sfile_of(s) + int('1'))
+end
+
+function ssquare_to_dan_str(s::Square)
+    char(RANK_9 - srank_of(s) + int('1'))
+end
+
+function square_to_jstring(s::Square)
+    # println("sq=",s)
+    suji = ssquare_to_suji_str(s)
+    dan  = ssquare_to_dan_str(s)
+    "$(suji)$(dan)"
 end

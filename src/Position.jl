@@ -667,7 +667,8 @@ function check_blockers(pos::SPosition, bb::SContextBB, c::Color, kingColor::Col
                | pieces(pos,UM) & bb.PseudoAttacks[BISHOP+1][ksq+1]) & pieces(pos,kingColor$1)
 
     while (pinners > sbitboard(0))
-        b = between_bb(bb, ksq, pop_lsb(pinners)) & pieces(pos)
+        sqq, pinners = pop_lsb(pinners)
+        b = between_bb(bb, ksq, sqq) & pieces(pos)
         if !move_than_one(b)
             result |= b & pieces(c)
         end
@@ -715,7 +716,7 @@ function attackers_to(sp::SPosition, bb::SContextBB, s::Square, occ::SBitboard)
         sum |= attacks_bb(bb, KY, s, occ, true) & pieces(sp, KY)
         
     end
-    println(pretty2(bb, sum))
+    #println(pretty2(bb, sum))
     sum
 end
 

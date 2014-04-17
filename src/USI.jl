@@ -85,6 +85,19 @@ function mainLoop(bbb::SContextBB, uci::USI, omap::OptionMap, sock::Base.TcpSock
     # print board!
     pretty(pos,mov)
 
+    sml = SMoveList(pos, bbb, NON_EVASIONS)
+    for s in sml.mlist
+        println("$(move_to_san(s.move))")
+    end
+
+    # pos.sideToMove = color(pos.sideToMove$1)
+
+    # sml = SMoveList(pos, bbb, NON_EVASIONS)
+    # for s in sml.mlist
+    #     println("$(move_to_san(s.move))")
+    # end
+
+
     while true
         line = readline(sock)
         comlist = split(line)
