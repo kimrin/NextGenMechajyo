@@ -100,7 +100,7 @@ function generate_fu_moves(Us::Color, gt::GenType, pos::SPosition, bb::SContextB
 
         pl = list(pos, Us, FU)
         for from in pl
-            b = attacks_from(pos, bb, smake_piece(Us, FU), from)
+            b = attacks_from(pos, bb, smake_piece(Us, FU), from) & target
             while b > sbitboard(0)
                 #println("b=",bin(b))
                 sq, b = pop_lsb(b)
@@ -111,20 +111,91 @@ function generate_fu_moves(Us::Color, gt::GenType, pos::SPosition, bb::SContextB
     mlist.last
 end
 
+# returns SlideType, isKY
+function GetSlideType(Pt::PieceType)
+    if Pt == KY
+        return ROOK, true
+    elseif Pt == HI || Pt == RY
+        return ROOK, false
+    elseif Pt == KA || Pt == UM
+        return BISHOP, false
+    end
+    return (NO_PIECE_TYPE, false)
+end
+
+function generate_moves(Pt::PieceType, Checks::Bool, pos::SPosition, bb::SContextBB,
+                        Us::Color, mlist::SMoveList, target::SBitboard, isSlide::Bool, ci=0)
+
+    pl = list(pos, Us, Pt)
+
+    for from in pl
+        if Checks == true
+            slideType, isKY = GetSlideType(Pt)
+
+            if (isSlide == true && 
+                bb.PseudoAttacks[slideType+1][from+1] 
+                & ((isKY == true)?forward_bb(bb, c, ksq+1):MaskOfBoard) 
+                & ci.checkSq[Pt+1])
+                
+                continue
+            end
+
+            if unlikely(ci.dcCandidates) && (ci.dcCandidastes & bb.SquareBB[from+1])
+                continue
+            end
+        end
+
+        b = ((isSlide == true) ? attacks_from(pos, bb, Pt, from, true):
+             attacks_from(pos, bb, smake_piece(Us, Pt), from))
+
+        #if isSlide == true
+        #println(KOMASTR[Pt],":",bin(b))
+        #end
+        b = b & target
+        #if isSlide == true
+        #println(KOMASTR[Pt],":",bin(b))
+        #end
+
+        if Checks == true
+            b = b & ci.checkSQ[Pt+1]
+        end
+
+        while b > sbitboard(0)
+            sq, b = pop_lsb(b)
+            add!(mlist, make(from, int32(sq), smake_piece(Us, Pt), uint32(0), NO_PIECE_TYPE))
+        end
+    end
+    mlist.last
+end
+
 function generate_all(Us::Color, gt::GenType, pos::SPosition, bb::SContextBB,
                       mlist::SMoveList, target::SBitboard, ci=0)
     Checks = bool(gt == QUIET_CHECKS)
-
+    #println("target = ", bin(target))
     last = int64(0)
     last = generate_fu_moves(Us, gt, pos, bb, mlist, target, ci)
-    #last = generate_moves(KY, Checks, pos, bb, Us, mlist, target, ci)
-    # ...to be continued
+    last = generate_moves(KY, Checks, pos, bb, Us, mlist, target, true,  ci)
+    last = generate_moves(KE, Checks, pos, bb, Us, mlist, target, false, ci)
+    last = generate_moves(GI, Checks, pos, bb, Us, mlist, target, false, ci)
+    last = generate_moves(KI, Checks, pos, bb, Us, mlist, target, false, ci)
+    last = generate_moves(KA, Checks, pos, bb, Us, mlist, target, true,  ci)
+    last = generate_moves(HI, Checks, pos, bb, Us, mlist, target, true,  ci)
+    # OU is generated in later
+    last = generate_moves(TO, Checks, pos, bb, Us, mlist, target, false, ci)
+    last = generate_moves(NY, Checks, pos, bb, Us, mlist, target, false, ci)
+    last = generate_moves(NK, Checks, pos, bb, Us, mlist, target, false, ci)
+    last = generate_moves(NG, Checks, pos, bb, Us, mlist, target, false, ci)
+    last = generate_moves(UM, Checks, pos, bb, Us, mlist, target, false, ci)
+    last = generate_moves(RY, Checks, pos, bb, Us, mlist, target, false, ci)
+    last = generate_moves(UM, Checks, pos, bb, Us, mlist, target, true,  ci)
+    last = generate_moves(RY, Checks, pos, bb, Us, mlist, target, true,  ci)
+
     if (gt != QUIET_CHECKS) && (gt != EVASIONS)
         ksq = king_square(pos, Us)
         b   = attacks_from(pos, bb, smake_piece(Us,OU), ksq) & target
         while b > sbitboard(0)
             sq, b = pop_lsb(b)
-            add(mlist, smake_move(ksq, sq, smake_piece(Us, OU), uint32(0),NO_PIECE_TYPE))
+            add!(mlist, make(ksq, sq, smake_piece(Us, OU), uint32(0),NO_PIECE_TYPE))
         end
     end
     mlist.last
@@ -152,7 +223,14 @@ end
 function generate(gt::GenType, pos::SPosition, bb::SContextBB, mlist::SMoveList)
     us = side_to_move(pos)
 
-    target = pieces(pos,color(us$1))
+    target = sbitboard(0)
+    if gt == CAPTURES
+        target = pieces(pos,color(us$1))
+    elseif gt == QUIETS
+        target = ~pieces(pos) & MaskOfBoard
+    elseif gt == NON_EVASIONS
+        target = ~pieces(pos,us) & MaskOfBoard
+    end
 
     if us == WHITE
         return generate_all(WHITE, gt, pos, bb, mlist, target)

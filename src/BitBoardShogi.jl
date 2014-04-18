@@ -98,7 +98,7 @@ function pop_lsb(b::SBitboard)
     ret = trailing_zeros(b)
     b = bb & (sbitboard(bb - 1))
 
-    ret, b
+    squareC(ret), b
 end
 
 function lsb(b::SBitboard)
@@ -310,7 +310,9 @@ end
 # Functions for computing sliding attack bitboards. Function attacks_bb() takes
 # a square and a bitboard of occupied squares as input, and returns a bitboard
 # representing all squares attacked by Pt (bishop or rook) on the given square.
-function magic_index(bb::SContextBB, Pt::PieceType, s::Square, occ::SBitboard)
+function magic_index(bb::SContextBB, p::Piece, s::Square, occ::SBitboard)
+    Pt = stype_of(p)
+
     Masks  = (Pt == ROOK)? bb.RMasks: bb.BMasks
     Magics = (Pt == ROOK)? bb.RMagics: bb.BMagics
     Shifts = (Pt == ROOK)? bb.RShifts: bb.BShifts
@@ -319,19 +321,21 @@ function magic_index(bb::SContextBB, Pt::PieceType, s::Square, occ::SBitboard)
 end
 
 # isSliding is only for distinguish from attacks_bb(4)
-function attacks_bb(bb::SContextBB, Pt::PieceType, s::Square, occ::SBitboard, isSliding::Bool)
-    ar = (Pt == HI ? bb.RAttacks : bb.BAttacks)
-    (ar[s+1])[magic_index(bb, Pt, s, occ)+1]
+function attacks_bb(bb::SContextBB, Pt::PieceType, s::Square, occ::SBitboard, isSliding::Bool=true)
+    ar = ((Pt == HI||Pt == KY||Pt == RY) ? bb.RAttacks : bb.BAttacks)
+    PtChess = (Pt == HI||Pt == KY||Pt ==RY)?ROOK:BISHOP
+    (ar[s+1])[magic_index(bb, PtChess, s, occ)+1]
 end
 
+# when we call this function, we recognized that this piece(p) is no sliding piece.
 function attacks_bb(bb::SContextBB, p::Piece, s::Square, occ::SBitboard)
     t = stype_of(p)
     if t == KA
-        return attacks_bb(bb, KA, s, occ, true)
+        return attacks_bb(bb, p, s, occ, true)
     elseif t == HI
-        return attacks_bb(bb, HI, s, occ, true)
+        return attacks_bb(bb, p, s, occ, true)
     elseif t == KY # for KyouSha, only forward attacks are enabled
-        return attacks_bb(bb, HI, s, occ, true)&bb.ForwardBB[scolor_of(p)+1,s+1]
+        return attacks_bb(bb, p, s, occ, true)&bb.ForwardBB[scolor_of(p)+1,s+1]
     else
         return bb.StepAttacksBB[p+1,s+1]
     end

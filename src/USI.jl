@@ -73,8 +73,8 @@ const NanaRokuFUSFEN = "lnsgkgsnl/1r5b1/ppppppppp/9/9/2P6/PP1PPPPPP/1B5R1/LNSGKG
 
 function mainLoop(bbb::SContextBB, uci::USI, omap::OptionMap, sock::Base.TcpSocket)
     # Position pos(StartFEN, false, Threads.main()); // The root position
-    pos = SPosition(bbb, StartSFEN, threadNumber(0))
-    #pos = SPosition(bbb, FestivalSFEN, threadNumber(0))
+    #pos = SPosition(bbb, StartSFEN, threadNumber(0))
+    pos = SPosition(bbb, FestivalSFEN, threadNumber(0))
     #pos = SPosition(bbb, NanaRokuFUSFEN, threadNumber(0))
 
     mov = false ? make(squareC(20), squareC(29), FU, uint32(0), pieceType(0)): SMOVE_NULL # if true, make +7776FU

@@ -144,8 +144,8 @@ type SCheckInfo
         n.checkSq[KY] = attacks_from(pos, bb, smake_piece(them,KY), ksq, true)
         n.checkSq[KA] = attacks_from(pos, bb, smake_piece(them,KA), ksq, true)
         n.checkSq[HI] = attacks_from(pos, bb, smake_piece(them,HI), ksq, true)
-        n.checkSq[UM] |= n.checkSq[KA]
-        n.checkSq[RY] |= n.checkSq[HI]
+        n.checkSq[UM] |= attacks_from(pos, bb, smake_piece(them,UM), ksq, true)
+        n.checkSq[RY] |= attacks_from(pos, bb, smake_piece(them,RY), ksq, true)
 
         n
     end
@@ -662,7 +662,7 @@ function check_blockers(pos::SPosition, bb::SContextBB, c::Color, kingColor::Col
     # TODO: Should be verifing in another times!
     pinners = (pieces(pos,HI) & bb.PseudoAttacks[ROOK+1][ksq+1]
                | pieces(pos,KA) & bb.PseudoAttacks[BISHOP+1][ksq+1]
-               | pieces(pos,KY) & bb.PseudoAttacks[ROOK+1][ksq+1] # bb.ForwardBB is needed
+               | pieces(pos,KY) & bb.PseudoAttacks[ROOK+1][ksq+1] & forward_bb(bb, c, ksq+1)
                | pieces(pos,RY) & bb.PseudoAttacks[ROOK+1][ksq+1]
                | pieces(pos,UM) & bb.PseudoAttacks[BISHOP+1][ksq+1]) & pieces(pos,kingColor$1)
 
@@ -685,9 +685,14 @@ function pinned_pieces(pos::SPosition, bb::SContextBB, c::Color)
 end
 
 # dummy is ... dummy argument!
-function attacks_from(sp::SPosition, bb::SContextBB, pt::PieceType, s::Square, dummy::Bool)
-    if (pt == KA || pt == HI || pt == KY)
+function attacks_from(sp::SPosition, bb::SContextBB, p::Piece, s::Square, dummy::Bool)
+    pt = stype_of(p)
+    if pt == KA || pt == HI
         return attacks_bb(bb, pt, s, sp.byTypeBB[SALL_PIECES+1], true)
+    elseif pt == UM || pt == RY
+        return attacks_bb(bb, pieceType(pt-PT_PROMOTE_OFFSET), s, sp.byTypeBB[SALL_PIECES+1], true)
+    elseif pt == KY
+        return attacks_bb(bb, pt, s, sp.byTypeBB[SALL_PIECES+1], true) & bb.ForwardBB[scolor_of(p)+1,s+1]
     else
         println("This function must call with piece type = KA or HI!")
         return sbitboard(0)
@@ -714,6 +719,8 @@ function attackers_to(sp::SPosition, bb::SContextBB, s::Square, occ::SBitboard)
         sum |= attacks_bb(bb, HI, s, occ, true) & pieces(sp, HI)
         sum |= attacks_bb(bb, KA, s, occ, true) & pieces(sp, KA)
         sum |= attacks_bb(bb, KY, s, occ, true) & pieces(sp, KY)
+        sum |= attacks_bb(bb, RY, s, occ, true) & pieces(sp, RY)
+        sum |= attacks_bb(bb, UM, s, occ, true) & pieces(sp, UM)
         
     end
     #println(pretty2(bb, sum))
