@@ -209,7 +209,8 @@ function sflip(s::Square) # cannot overwritten ~(Int32,) so tentative name "sfli
     squareC(SSQ_I9-s)     # Vertical flip SSQ_A1 -> SSQ_I9
 end
 
-immutable type SExtMove
+# not immutable...
+type SExtMove
     move::SMove
     score::Int32
 end
