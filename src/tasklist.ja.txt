@@ -3,6 +3,64 @@
 # 
 # 
 # ・やるべきことのTODOリスト（自己管理用）
+# ・updated 2014/04/20
+#
+# ・可能手生成（movegen.cpp）
+#   ・まだnormal move(NON_EVASIONS)の一部しかできていない
+#   ・move pickとも関わる部分なので、CAPTURES, EVASIONSについて、
+#   　可能手を生成できるようになる必要あり
+#
+# ・move ordering(movepick.cpp)
+#   ・できればSEEを実装しておく
+#   ・move pickの各ステージを実装する
+#     関連してTransposition Tableも進められるとよい
+#
+# ・do/undo moves(position.cpp?)
+#   ・これが無いと始まらないので、ともかく実装する
+#     CAPTURES, EVASIONS, あとDROPSについても可能手生成ができるようになったら
+#     早急にdo/undoを実装する。ケースが網羅できれば可能手生成祭りの局面などで検証ができるようになるはず
+#
+# ・Bonanza evaluation functionの実装
+#   ・calc differentはもう諦める。ともかく既存のWCSC23内にあるJuliaのコードをNextGenMechajyoで動くように修正すること
+#   ・evaluation transposition table (cache)について、実装すること。サイズに気を配ること
+#
+# ・Transposition Table
+#   ・必要な物なので、できるだけ早く実装する
+#   ・hash()関数を活用して、exclusive movesだけ実装して、あとはDict<K,V>に任せる
+#     サイズは気にした方がいい。ただ、32vCPUs時で120GBメモリがあるので、どんどん使うこと
+#     もういざとなったら、examples/lru.jlをそのまま持ってきて修正して使ってしまうとよい
+#     (ライセンスが若干面倒い。。。)
+#
+# ・探索(search.cpp)
+#   ・ひとまず評価関数と可能手生成、do/undo、move pickerがそろったら、
+#     探索を作ってみる。自分でまずはシンプルなAlpha-Betaを実装してもよい
+#   ・はじめから全部を実装するのでなく、最低限のAlpha-Beta実装を行っておいて、
+#     pruningをだんだんに実装してNPSと探索深さを大きくしていく作戦
+#
+# ・時間管理、ponder
+#   ・ponderはまだ実装したことがないので、どうやって実装するか考える
+#     時間管理はponderと関連してくるが、12秒思考がデフォルト、ponder hitしたら思考開始から16秒くらいで相手に渡せばいいのでは
+#     ponderのように裏で思考をするケースは、後々のマルチプロセッサ対応を見越して実装した方がよい
+#
+# ・マルチプロセッサ対応
+#   ・CPUのパワーがもったいないのでぜひ入れたい。出来れば複数マシン
+#     ただ、全部上記ができてからの対応で大丈夫（間に合わないかも）
+#     pmap()を改良すれば、beta-cutの実装なんかもできそうな気がする
+#     あまりStockifshの実装を真似しようとせず、自分でここは実装する
+#     基礎的な検討がもう少しできれば、pmapならぬshogimapみたいなのを
+#     実装して、マシンごとにBitMapTableとTransposition Tableを分けておけば
+#     いいんでないか
+#
+# ・将棋所（時間をみてやっておく）
+#   ・出来れば安定動作を狙いたいので、parallels か VMWare Fusionのいずれか＋Windows8.1の
+#     組み合わせでMacにインストールして、将棋所をインストールしたら、あとは.NetTelnetを改良して、
+#     host.txtに書かれているホストにアクセスするtelnet相当のプログラムを将棋所のエンジンとして
+#     登録しておけばよい。あとは各コマンドを実装する。最低限の所でいうと、position, go, 投了など
+#
+#   ・parallels か　VMWare Fusionが、複数のネットワークポートに対応しているか確認する。できれば
+#     事前動作確認したいところ
+
+## 過去のTODO List
 # 
 # MANDATORY:
 # 
