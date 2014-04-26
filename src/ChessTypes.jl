@@ -414,6 +414,6 @@ function square_to_string(s::Square)
     "$(fi)$(ra)"
 end
 
-function more_than_one(b::Bitboard)
+function more_than_one{T}(b::T)
     b & (b - 1)
 end

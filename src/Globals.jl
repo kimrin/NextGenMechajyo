@@ -75,6 +75,9 @@ type SContextBB
 
     calcMagic::Bool
 
+    MoveMask::Array{SBitboard,1}
+    DropTable::Array{Int64,2}
+
     function SContextBB()
         new() # return with garbage
     end

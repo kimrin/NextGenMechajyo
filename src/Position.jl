@@ -282,6 +282,7 @@ function pretty(pos::SPosition, move::SMove)
     end
     DisplayMochiGoma(pos, WHITE)
     # println("Material = ", bo.Material)
+    println(pos.sideToMove == WHITE? "先手番":"後手番")
     println()
 end
 
@@ -564,6 +565,7 @@ end
 function set_state(pos::SPosition, bb::SContextBB, si::SStateInfo)
     # calculations for Zobrist are omitted
     si.checkersBB = pieces(pos, int8(pos.sideToMove$1)) & attackers_to(pos, bb, king_square(pos, pos.sideToMove)) 
+    pos.st = si
 end
 
 function put_piece(sbb::SContextBB, sp::SPosition, s::Square, c::Color, pt::PieceType)
@@ -660,16 +662,18 @@ function check_blockers(pos::SPosition, bb::SContextBB, c::Color, kingColor::Col
     # Pinners are sliders that give check when a pinned piece is removed
 
     # TODO: Should be verifing in another times!
-    pinners = (pieces(pos,HI) & bb.PseudoAttacks[ROOK+1][ksq+1]
-               | pieces(pos,KA) & bb.PseudoAttacks[BISHOP+1][ksq+1]
-               | pieces(pos,KY) & bb.PseudoAttacks[ROOK+1][ksq+1] & forward_bb(bb, c, ksq+1)
-               | pieces(pos,RY) & bb.PseudoAttacks[ROOK+1][ksq+1]
-               | pieces(pos,UM) & bb.PseudoAttacks[BISHOP+1][ksq+1]) & pieces(pos,kingColor$1)
+    pinners = (pieces(pos,HI) & bb.PseudoAttacks[ROOK+1,ksq+1]
+               | pieces(pos,KA) & bb.PseudoAttacks[BISHOP+1,ksq+1]
+               | pieces(pos,KY) & bb.PseudoAttacks[ROOK+1,ksq+1] & forward_bb(bb, c, ksq)
+               | pieces(pos,RY) & bb.PseudoAttacks[ROOK+1,ksq+1]
+               | pieces(pos,UM) & bb.PseudoAttacks[BISHOP+1,ksq+1]) & pieces(pos,color(kingColor$1))
 
+    ls = LSBC(0,sbitboard(0))
     while (pinners > sbitboard(0))
-        sqq, pinners = pop_lsb(pinners)
-        b = between_bb(bb, ksq, sqq) & pieces(pos)
-        if !move_than_one(b)
+        pop_lsb(pinners, ls)
+        pinners = ls.b
+        b = between_bb(bb, ksq, squareC(ls.sq)) & pieces(pos)
+        if more_than_one(b) == sbitboard(0)
             result |= b & pieces(c)
         end
     end
@@ -687,12 +691,8 @@ end
 # dummy is ... dummy argument!
 function attacks_from(sp::SPosition, bb::SContextBB, p::Piece, s::Square, dummy::Bool)
     pt = stype_of(p)
-    if pt == KA || pt == HI
-        return attacks_bb(bb, pt, s, sp.byTypeBB[SALL_PIECES+1], true)
-    elseif pt == UM || pt == RY
-        return attacks_bb(bb, pieceType(pt-PT_PROMOTE_OFFSET), s, sp.byTypeBB[SALL_PIECES+1], true)
-    elseif pt == KY
-        return attacks_bb(bb, pt, s, sp.byTypeBB[SALL_PIECES+1], true) & bb.ForwardBB[scolor_of(p)+1,s+1]
+    if pt == KA || pt == HI || pt == UM || pt == RY || pt == KY
+        return attacks_bb(bb, p, s, sp.byTypeBB[SALL_PIECES+1], true)
     else
         println("This function must call with piece type = KA or HI!")
         return sbitboard(0)
@@ -737,7 +737,7 @@ function legal(pos::SPosition, bb::SContextBB, m::SMove, pinned::SBitboard)
     # square is attacked by the opponent. Castling moves are checked
     # for legality during move generation.
     if stype_of(piece_on(pos, from)) == OU
-        return false || ((attackers_to(pos,bb,to_sq(m) & pieces(us$1))) == sbitboard(0))
+        return false || (attackers_to(pos, bb, to_sq(m), pieces(pos,color(us$1))))== sbitboard(0)
     end
 
     # A non-king move is legal if and only if it is not pinned or it

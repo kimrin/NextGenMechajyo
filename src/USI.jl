@@ -68,8 +68,9 @@ end
 # Initial SFEN board representations:
 
 const StartSFEN= "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL w - 1"::ASCIIString # normal initial board
-const FestivalSFEN = "l6nl/5+P1gk/2np1S3/p1p4Pp/3P2Sp1/1PPb2P1P/P5GS1/R8/LN4bKL w RGgsn5p 1"::ASCIIString # so many available moves..
-const NanaRokuFUSFEN = "lnsgkgsnl/1r5b1/ppppppppp/9/9/2P6/PP1PPPPPP/1B5R1/LNSGKGSNL w - 1"::ASCIIString # after +7776FU
+#const FestivalSFEN = "l6nl/5+P1gk/2np1S3/p1p4Pp/3P2Sp1/1PPb2P1P/P5GS1/R8/LN4bKL b RGgsn5p 1"::ASCIIString # so many available moves..
+const FestivalSFEN = "l6nl/5+P1gk/2np1S3/p1p4Pp/3P2Sp1/1PPb2P1P/P5GS1/R8/LN4bKL b GR5pnsg 1"::ASCIIString # so many available moves..
+const NanaRokuFUSFEN = "lnsgkgsnl/1r5b1/ppppppppp/9/9/2P6/PP1PPPPPP/1B5R1/LNSGKGSNL b - 1"::ASCIIString # after +7776FU
 
 function mainLoop(bbb::SContextBB, uci::USI, omap::OptionMap, sock::Base.TcpSocket)
     # Position pos(StartFEN, false, Threads.main()); // The root position
@@ -85,10 +86,26 @@ function mainLoop(bbb::SContextBB, uci::USI, omap::OptionMap, sock::Base.TcpSock
     # print board!
     pretty(pos,mov)
 
-    sml = SMoveList(pos, bbb, NON_EVASIONS)
+    tic()
+
+    #for i = 1:100000
+    #    sml = SMoveList(pos, bbb, LEGAL)
+    #end
+    #Profile.print()
+    toc()
+    sml = SMoveList(pos, bbb, LEGAL)
+    println("generated ",sml.last, " moves!")
     for s in sml.mlist
-        println("$(move_to_san(s.move))")
+        println("$(move_to_san(smove(s.move)))")
     end
+
+    #@iprofile report
+
+    #for i = 1:10000
+    #sml = SMoveList(pos, bbb, NON_EVASIONS)
+    #end
+    #t = toc()
+    #println("generate ",10000.0 / t, " moves/sec")
 
     # pos.sideToMove = color(pos.sideToMove$1)
 

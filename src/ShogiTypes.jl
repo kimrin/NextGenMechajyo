@@ -210,8 +210,8 @@ function sflip(s::Square) # cannot overwritten ~(Int32,) so tentative name "sfli
 end
 
 # not immutable...
-type SExtMove
-    move::SMove
+immutable type SExtMove
+    move::Int64
     score::Int32
 end
 
@@ -290,7 +290,7 @@ end
 
 function make(from::Square, to::Square, p::Piece, flag::Uint32, capt::PieceType)
     # re-arrange function list! Also not included and-ing with masks!
-    smove(to | (from << 8) | (p << 16) | (flag << 24) | (capt << 28))
+    to | (from << 8) | (p << 16) | (flag << 24) | (capt << 28)
 end
 
 function is_ok(m::SMove)

@@ -90,16 +90,25 @@ function pretty2(bb::SContextBB, b::SBitboard)
     s
 end
 
+using IProfile
+
+type LSBC
+    sq::Int64
+    b::SBitboard
+end
+
 # lsb()/msb() finds the least/most significant bit in a non-zero bitboard.
 # pop_lsb() finds and clears the least significant bit in a non-zero bitboard.
-
-function pop_lsb(b::SBitboard)
+#@iprofile begin
+function pop_lsb(b::SBitboard,li::LSBC)
     bb = b
     ret = trailing_zeros(b)
-    b = bb & (sbitboard(bb - 1))
+    b = bb & (bb - 1)
 
-    squareC(ret), b
+    li.sq = ret
+    li.b  = b
 end
+#end
 
 function lsb(b::SBitboard)
     trailing_zeros(b)
@@ -159,7 +168,15 @@ function testBB(bb::SContextBB)
     #     end
     # end
 
+    # for c = WHITE:BLACK
+    #     for pt = FU:RY
+    #         p = smake_piece(c,pt)
+    #         println(((c==WHITE)?"▲":"△"),KOMASTR_SHORT[pt])
+    #         println(pretty2(bb, bb.MoveMask[p]))
+    #     end
+    # end
 
+    println(bb.DropTable)
 end
 
 function initBB(bb::SContextBB)
@@ -186,7 +203,7 @@ function initBB(bb::SContextBB)
     bb.InFrontBB = zeros(SBitboard, COLOR_NB, SRANK_NB)
     for r = RANK_1:(RANK_9-1)
         bb.InFrontBB[BLACK+1,r+1+1] = sbitboard(bb.InFrontBB[BLACK+1,r+1] | bb.RankBB[r+1])
-        bb.InFrontBB[WHITE+1,r+1] = sbitboard(~bb.InFrontBB[BLACK+1,r+1+1])
+        bb.InFrontBB[WHITE+1,r+1] = sbitboard(~bb.InFrontBB[BLACK+1,r+1+1]&MaskOfBoard)
     end
 
     bb.ForwardBB = zeros(SBitboard, COLOR_NB, SSQUARE_NB)
@@ -297,7 +314,18 @@ function initBB(bb::SContextBB)
             #println(pretty2(bb,bb.BetweenBB[s1+1,s2+1]))
         end
     end
+    
+    bb.MoveMask = SBitboard[MaskOfBoard for p = W_FU:B_RY]
+    bb.MoveMask[W_FU] = bb.InFrontBB[BLACK+1,RANK_9+1]
+    bb.MoveMask[W_KY] = bb.InFrontBB[BLACK+1,RANK_9+1]
+    bb.MoveMask[W_KE] = bb.InFrontBB[BLACK+1,RANK_8+1]
 
+    bb.MoveMask[B_FU] = bb.InFrontBB[WHITE+1,RANK_1+1]
+    bb.MoveMask[B_KY] = bb.InFrontBB[WHITE+1,RANK_1+1]
+    bb.MoveMask[B_KE] = bb.InFrontBB[WHITE+1,RANK_2+1]
+    
+    bb.DropTable = [((bb.MoveMask[p] & bb.RankBB[r+1] > sbitboard(0)) ? 1: 0) for r = RANK_1:RANK_9, p = W_FU:B_RY]
+    
     testBB(bb)
 end
 
@@ -321,10 +349,12 @@ function magic_index(bb::SContextBB, p::Piece, s::Square, occ::SBitboard)
 end
 
 # isSliding is only for distinguish from attacks_bb(4)
-function attacks_bb(bb::SContextBB, Pt::PieceType, s::Square, occ::SBitboard, isSliding::Bool=true)
-    ar = ((Pt == HI||Pt == KY||Pt == RY) ? bb.RAttacks : bb.BAttacks)
-    PtChess = (Pt == HI||Pt == KY||Pt ==RY)?ROOK:BISHOP
-    (ar[s+1])[magic_index(bb, PtChess, s, occ)+1]
+function attacks_bb(bb::SContextBB, p::Piece, s::Square, occ::SBitboard, isSliding::Bool=true)
+    Pt = stype_of(p)
+    boo = (Pt == HI || Pt == KY || Pt == RY)
+    ar = (boo == true ? bb.RAttacks : bb.BAttacks)
+    PtChess = boo == true ? ROOK:BISHOP
+    (ar[s+1])[magic_index(bb, PtChess, s, occ)+1] & ((Pt == KY)?bb.ForwardBB[(scolor_of(p)$1)+1,s+1]:MaskOfBoard)
 end
 
 # when we call this function, we recognized that this piece(p) is no sliding piece.
