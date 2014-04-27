@@ -478,9 +478,9 @@ function set(sbb::SContextBB, p::SPosition, sfen::ASCIIString, t::ThreadNumber)
     end
 
     if bw == "w"
-        p.sideToMove = WHITE
-    else # bw == "b"
         p.sideToMove = BLACK
+    else # bw == "b"
+        p.sideToMove = WHITE
     end
 
     numberOfMochi::Int = 0
@@ -674,7 +674,7 @@ function check_blockers(pos::SPosition, bb::SContextBB, c::Color, kingColor::Col
         pinners = ls.b
         b = between_bb(bb, ksq, squareC(ls.sq)) & pieces(pos)
         if more_than_one(b) == sbitboard(0)
-            result |= b & pieces(c)
+            result |= b & pieces(pos,c)
         end
     end
     result
@@ -711,18 +711,20 @@ end
 # given square. Slider attacks use the occ bitboard to indicate occupancy.
 function attackers_to(sp::SPosition, bb::SContextBB, s::Square, occ::SBitboard)
     sum = sbitboard(0)
+    println("attackers_to: occ:")
+    #println(pretty2(bb,occ))
     for c = WHITE:BLACK
         for pt = FU:RY
             p = smake_piece(c,pt)
-            sum |= attacks_from(sp, bb, p, s) & pieces(sp, c, pt)
+            sum |= attacks_from(sp, bb, p, s) & pieces(sp, color(c$1), pt) & occ
         end
-        sum |= attacks_bb(bb, HI, s, occ, true) & pieces(sp, HI)
-        sum |= attacks_bb(bb, KA, s, occ, true) & pieces(sp, KA)
-        sum |= attacks_bb(bb, KY, s, occ, true) & pieces(sp, KY)
-        sum |= attacks_bb(bb, RY, s, occ, true) & pieces(sp, RY)
-        sum |= attacks_bb(bb, UM, s, occ, true) & pieces(sp, UM)
-        
+        sum |= attacks_bb(bb, smake_piece(c,KY), s, occ, true) & pieces(sp, color(c$1), KY) & occ
+        sum |= attacks_bb(bb, smake_piece(c,HI), s, occ, true) & pieces(sp, color(c$1), HI) & occ
+        sum |= attacks_bb(bb, smake_piece(c,KA), s, occ, true) & pieces(sp, color(c$1), KA) & occ
+        sum |= attacks_bb(bb, smake_piece(c,RY), s, occ, true) & pieces(sp, color(c$1), RY) & occ
+        sum |= attacks_bb(bb, smake_piece(c,UM), s, occ, true) & pieces(sp, color(c$1), UM) & occ
     end
+        
     #println(pretty2(bb, sum))
     sum
 end
@@ -732,10 +734,18 @@ end
 function legal(pos::SPosition, bb::SContextBB, m::SMove, pinned::SBitboard)
     us = pos.sideToMove
     from = from_sq(m)
+    println("from=",from)
 
+    if from == SSQ_DROP
+        return true
+    end
     # If the moving piece is a king, check whether the destination
     # square is attacked by the opponent. Castling moves are checked
     # for legality during move generation.
+    println("attackers_to: joken bitboard")
+    println(pretty2(bb,(attackers_to(pos, bb, to_sq(m), pieces(pos,color(us$1))))))
+    println("joken = ", (attackers_to(pos, bb, to_sq(m), pieces(pos,color(us$1))))== sbitboard(0))
+
     if stype_of(piece_on(pos, from)) == OU
         return false || (attackers_to(pos, bb, to_sq(m), pieces(pos,color(us$1))))== sbitboard(0)
     end
@@ -744,7 +754,7 @@ function legal(pos::SPosition, bb::SContextBB, m::SMove, pinned::SBitboard)
     # is moving along the ray towards or away from the king.
     return (pinned == sbitboard(0)
             || (pinned & bb.SquareBB[from+1]) == sbitboard(0)
-            || aligned(from, to_sq(m), king_square(pos, us)))
+            || (aligned(bb, from, to_sq(m), king_square(pos, us)))>sbitboard(0))
 end
 
 # Position::pseudo_legal() takes a random move and tests whether the move is

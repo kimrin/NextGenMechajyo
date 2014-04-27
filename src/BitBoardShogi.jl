@@ -144,14 +144,15 @@ function testBB(bb::SContextBB)
     #     println(pretty2(bb,bb.InFrontBB[BLACK+1,r+1]))
     # end
 
+    # println("forward")
     # for c = WHITE:BLACK
     #     for s = SSQ_A1:SSQ_I9
-    #         println((c==WHITE)?"WHITE":"BLACK", " ", "s=", s)
+    #         println((c==WHITE)?"WHITE":"BLACK", " ", "s=", square_to_jstring(s))
     #         println(pretty2(bb, bb.ForwardBB[c+1,s+1]))
-    #         println(pretty2(bb, bb.PawnAttackSpan[c+1,s+1]))
-    #         println(pretty2(bb, bb.PassedPawnMask[c+1,s+1]))
+    #         #println(pretty2(bb, bb.PawnAttackSpan[c+1,s+1]))
+    #         #println(pretty2(bb, bb.PassedPawnMask[c+1,s+1]))
     #     end
-    # end
+    #  end
 
     # for s1 = SSQ_A1:SSQ_I9
     #     for s2 = FILE_A:FILE_I
@@ -354,7 +355,7 @@ function attacks_bb(bb::SContextBB, p::Piece, s::Square, occ::SBitboard, isSlidi
     boo = (Pt == HI || Pt == KY || Pt == RY)
     ar = (boo == true ? bb.RAttacks : bb.BAttacks)
     PtChess = boo == true ? ROOK:BISHOP
-    (ar[s+1])[magic_index(bb, PtChess, s, occ)+1] & ((Pt == KY)?bb.ForwardBB[(scolor_of(p)$1)+1,s+1]:MaskOfBoard)
+    (ar[s+1])[magic_index(bb, PtChess, s, occ)+1] & ((Pt == KY)?bb.ForwardBB[(scolor_of(p))+1,s+1]:MaskOfBoard)
 end
 
 # when we call this function, we recognized that this piece(p) is no sliding piece.

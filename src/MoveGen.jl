@@ -279,7 +279,7 @@ function generate_moves(Pt::PieceType, Checks::Bool, pos::SPosition, bb::SContex
             end
         end
 
-        b = ((isSlide == true) ? attacks_from(pos, bb, Pt, from, true):
+        b = ((isSlide == true) ? attacks_from(pos, bb, smake_piece(Us,Pt), from, true):
              attacks_from(pos, bb, smake_piece(Us, Pt), from))
 
         #println("from = ", square_to_jstring(from))
@@ -422,6 +422,8 @@ function generateLEGAL(pos::SPosition, bb::SContextBB, mlist::SMoveList)
         #println("hi")
         if ((pinned>sbitboard(0)) || (fsq==ksq) || false) && !legal(pos, bb, m, pinned)
             #println("cur->move = (--end)->move")
+            println("ignored: $(move_to_san(m))")
+            splice!(mlist.mlist, curr+1)
             ende = int32(ende-1)
         else
             #println("curr=$curr, ende=$ende")
