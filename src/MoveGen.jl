@@ -61,7 +61,7 @@ function inc(ml::SMoveList) # operator ++() in C++
 end
 
 function getSMove(ml::SMoveList) # operator *() in C++
-    println("len=$(length(ml.mlist))", ", cur = ", "$cur")
+    #println("len=$(length(ml.mlist))", ", cur = ", "$cur")
     ml.mlist[(ml.cur)+1].move
 end
 
@@ -127,6 +127,34 @@ function drops_inner(mask::SBitboard, p::Piece, mlist::SMoveList)
 end
 #end
 
+const UINT32ZERO = uint32(0)
+
+function add_drop_moves(to::Int64, p::Piece, mlist::SMoveList)
+    ins = make(SSQ_DROP, squareC(to), p,  UINT32ZERO, NO_PIECE_TYPE)
+    add!(mlist, ins)
+end
+
+function generate_drops_inner(pos::SPosition, bb::SContextBB, Us::Color, pity::PieceType, p::Piece, mlist::SMoveList, mask::SBitboard, bi::SBitboard)
+    if pos.capturedPieces[Us+1,pity+1] > 0
+        while mask > sbitboard(0)
+            to = trailing_zeros(mask)
+            mask = mask & (mask-1)
+            ra = srank_of(int32(to))
+            if (pity == FU)&&(bb.DropTable[ra+1,p] == 1)&&(bi & bb.SquareBB[to+1] > sbitboard(0))
+                add_drop_moves(to, p, mlist)
+            elseif (pity == KY || pity == KE)&&(bb.DropTable[ra+1,p] == 1)
+                add_drop_moves(to, p, mlist)
+            elseif (pity == GI)||(pity == KI)||(pity == KA)||(pity == HI)
+                add_drop_moves(to, p, mlist)
+            else
+                # do nothing
+            end
+        end
+    else
+        # do nothing
+    end
+end
+
 #@iprofile begin
 function generate_drops(Us::Color, gt::GenType, pos::SPosition, bb::SContextBB,
                         mlist::SMoveList, target::SBitboard, ci = 0)
@@ -136,72 +164,22 @@ function generate_drops(Us::Color, gt::GenType, pos::SPosition, bb::SContextBB,
         return mlist.last
     end
 
-    if gt == EVASIONS
-        # some stuff comes here
-    else
-        pl = list(pos, Us, FU)
-        bi = sbitboard(0)
-        for sq in pl
-            fi = sfile_of(sq)
-            bi |= bb.FileBB[fi+1]
-        end
-        bi = ~bi & MaskOfBoard
+    if gt != EVASIONS
+        target = MaskOfBoard
+    end
 
-        pifrom = smake_piece(Us,GI)
-        pito   = smake_piece(Us,HI)
+    pl = list(pos, Us, FU)
+    bi = sbitboard(0)
+    for sq in pl
+        fi = sfile_of(sq)
+        bi |= bb.FileBB[fi+1]
+    end
+    bi = ~bi & MaskOfBoard
 
-        lis = [(smake_piece(Us,GI),GI),(smake_piece(Us,KI),KI),(smake_piece(Us,KA),KA),(smake_piece(Us,HI),HI)]
-
-        mask = ~pieces(pos) & MaskOfBoard
-
-        usfu = smake_piece(Us,FU)
-        usky = smake_piece(Us,KY)
-        uske = smake_piece(Us,KE)
-        while mask > sbitboard(0)
-            # pop_lsb is inlined
-            to = int32(trailing_zeros(mask))
-            mask = mask & (mask - 1)
-            ra = srank_of(to)
-            if (pos.capturedPieces[Us+1,FU+1] > int32(0))&&(bb.DropTable[ra+1,usfu] == 1)&&(bi & bb.SquareBB[to+1] > sbitboard(0))
-                ins = make(SSQ_DROP, to, usfu, ui, NO_PIECE_TYPE)
-                add!(mlist, ins)
-            end
-            if (pos.capturedPieces[Us+1,KY+1] > int32(0))&&(bb.DropTable[ra+1,usky] == 1)
-                ins = make(SSQ_DROP, to, usky, ui, NO_PIECE_TYPE)
-                add!(mlist, ins)
-            end
-            if (pos.capturedPieces[Us+1,KE+1] > int32(0))&&(bb.DropTable[ra+1,uske] == 1)
-                ins = make(SSQ_DROP, to, uske, ui, NO_PIECE_TYPE)
-                add!(mlist, ins)
-            end
-            for (p,pt) in lis
-                if (pos.capturedPieces[Us+1,pt+1] > int32(0))
-                    ins = make(SSQ_DROP, to, p, ui, NO_PIECE_TYPE)
-                    add!(mlist, ins)
-                end
-            end
-        end
-
-        # for ra = RANK_1:RANK_9
-        #     for fi = FILE_A:FILE_I
-        #         for p = pifrom:pito
-        #             sq = sfile_rank(fi, ra)
-        #             if (pos.board[sq+1] == NO_PIECE) &&(bb.DropTable[ra+1,p] == 1) # actuall p is p+1 in DropTable
-        #                 ins = make(SSQ_DROP, sq, p, ui, NO_PIECE_TYPE)
-        #                 add!(mlist, ins)
-
-        #             end
-        #         end
-        #     end
-        # end
-
-        # for pt = FU:HI
-        #     p = smake_piece(Us, pt)
-        #     if pos.capturedPieces[Us+1,pt+1] > int32(0)
-        #         mask = ~pieces(pos) & GetMoveMask(bb, p) & ((pt == FU) ? bi: MaskOfBoard)
-        #         drops_inner(mask, p, mlist)
-        #     end
-        # end
+    mask = ~pieces(pos) & target
+    
+    for pity = FU:HI
+        generate_drops_inner(pos, bb, Us, pity, smake_piece(Us, pity), mlist, mask, bi)
     end
 
     mlist.last
@@ -283,12 +261,12 @@ function generate_moves(Pt::PieceType, Checks::Bool, pos::SPosition, bb::SContex
              attacks_from(pos, bb, smake_piece(Us, Pt), from))
 
         #println("from = ", square_to_jstring(from))
-        println("isSlide=",isSlide,"BB:")
-        println(pretty2(bb,b))
+        #println("isSlide=",isSlide,"BB:")
+        #println(pretty2(bb,b))
 
-        if isSlide == true
-            println(KOMASTR[Pt],":",bin(b))
-        end
+        #if isSlide == true
+        #    println(KOMASTR[Pt],":",bin(b))
+        #end
         b = b & target
         #if isSlide == true
         #println(KOMASTR[Pt],":",bin(b))
@@ -298,8 +276,8 @@ function generate_moves(Pt::PieceType, Checks::Bool, pos::SPosition, bb::SContex
             b = b & ci.checkSQ[Pt+1]
         end
 
-        println("isSlide=",isSlide,"Checks=",Checks,"BB:")
-        println(pretty2(bb,b))
+        #println("isSlide=",isSlide,"Checks=",Checks,"BB:")
+        #println(pretty2(bb,b))
         
         piece = smake_piece(Us, Pt)
         ppiece = smake_piece(Us, pieceType(Pt+PT_PROMOTE_OFFSET))
@@ -374,6 +352,7 @@ function generate(gt::GenType, pos::SPosition, bb::SContextBB, mlist::SMoveList,
 end
 
 # gt = CAPTURES, QUIETS, NON_EVASIONS
+#@iprofile begin
 function generate(gt::GenType, pos::SPosition, bb::SContextBB, mlist::SMoveList)
     us = side_to_move(pos)
 
@@ -396,40 +375,100 @@ function generate(gt::GenType, pos::SPosition, bb::SContextBB, mlist::SMoveList)
         return t
     end
 end
-
+#end
 
 function generateQUIET_CHECKS(pos::SPosition, bb::SContextBB, mlist::SMoveList)
     return 0
 end
 
+# generate<EVASIONS> generates all pseudo-legal check evasions when the side
+# to move is in check. Returns a pointer to the end of the move list.
 function generateEVASIONS(pos::SPosition, bb::SContextBB, mlist::SMoveList)
-    return 0
+    us = pos.sideToMove
+    ksq = king_square(pos, us)
+    sliderAttacks = sbitboard(0)
+    sliders = checkers(pos.st) & (pieces(pos,KY)|pieces(pos,KA)|pieces(pos,HI)|pieces(pos,UM)|pieces(pos,RY))
+
+    # Find all the squares attacked by slider checkers. We will remove them from
+    # the king evasions in order to skip known illegal moves, which avoids any
+    # useless legality checks later on.
+    while sliders > sbitboard(0)
+        checksq = trailing_zeros(sliders)
+        sliders = sliders & (sliders-1)
+        sliderAttacks |= bb.LineBB[checksq+1,ksq+1] $ bb.SquareBB[checksq+1]
+    end
+
+    # Generate evasions for king, capture and non capture moves
+    b = attacks_from(pos, bb, smake_piece(us,OU), ksq) & (~pieces(pos,us)&MaskOfBoard) & (~sliderAttacks&MaskOfBoard)
+
+    while b > sbitboard(0)
+        sq = trailing_zeros(b)
+        b = b & (b - 1)
+        add!(mlist, make(ksq, squareC(sq), smake_piece(us, OU), UINT32ZERO,NO_PIECE_TYPE))
+    end
+
+    if more_than_one(checkers(pos.st)) > sbitboard(0)
+        return mlist.last # Double check, only a king move can save the day
+    end
+
+    # Generate blocking evasions or captures of the checking piece
+    checksq = trailing_zeros(checkers(pos.st))
+    target = between_bb(bb, squareC(checksq), ksq) | bb.SquareBB[checksq+1]
+
+    if us == WHITE
+        t = generate_all(WHITE, EVASIONS, pos, bb, mlist, target)
+        return t
+    else
+        t = generate_all(BLACK, EVASIONS, pos, bb, mlist, target)
+        return t
+    end
+end
+
+function filterPredicate(k::SExtMove, v::Bool)
+    v
 end
 
 function generateLEGAL(pos::SPosition, bb::SContextBB, mlist::SMoveList)
     st = pos.st
-    curr = int32(0)
-    ende = int32(0)
+    curr = 1
+    ende = 0
     pinned = pinned_pieces(pos, bb, side_to_move(pos))
     ksq = king_square(pos, side_to_move(pos))
 
     ende = checkers(st) > sbitboard(0) ? generateEVASIONS(pos, bb, mlist): generate(NON_EVASIONS, pos, bb, mlist) 
     #println("ende=$ende")
-    while curr != ende
-        #println("hi")
-        m = smove(mlist.mlist[curr+1].move)
-        fsq = from_sq(m)
-        #println("hi")
-        if ((pinned>sbitboard(0)) || (fsq==ksq) || false) && !legal(pos, bb, m, pinned)
-            #println("cur->move = (--end)->move")
-            println("ignored: $(move_to_san(m))")
-            splice!(mlist.mlist, curr+1)
-            ende = int32(ende-1)
+
+    newml = SExtMove[]::Array{SExtMove,1}
+    sizehint(newml,ende)
+
+    for sm in mlist.mlist
+        #println("s1:", (from_sq(smove(sm.move)) == ksq)||(pinned > sbitboard(0)))
+        #println("s2:", (!legal(pos, bb, smove(sm.move), pinned)))
+        if !(((from_sq(smove(sm.move)) == ksq)||(pinned > sbitboard(0)))&&(!legal(pos, bb, smove(sm.move), pinned)))
+            push!(newml,sm)
         else
-            #println("curr=$curr, ende=$ende")
-            curr = int32(curr+1)
+            # println("ignored: $(move_to_san(smove(sm.move)))")
         end
+
     end
 
-    ende
+    mlist.mlist = newml
+
+    # while curr != ende
+    #     #println("hi")
+    #     m = smove(mlist.mlist[curr].move)
+    #     fsq = from_sq(m)
+    #     #println("hi")
+    #     if ((fsq==ksq) || (pinned>sbitboard(0)) || false) && !legal(pos, bb, m, pinned)
+    #         #println("cur->move = (--end)->move")
+    #         println("ignored: $(move_to_san(m))")
+    #         splice!(mlist.mlist, curr)
+    #         ende -= 1
+    #         mlist.mlist[curr] = mlist.mlist[ende]
+    #     else
+    #         #println("curr=$curr, ende=$ende")
+    #         curr += 1
+    #     end
+    # end
+    length(mlist.mlist)
 end

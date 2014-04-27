@@ -268,7 +268,7 @@ function fu_push(c::Color)
 end
 
 function from_sq(m::SMove)
-    squareC((m >>> 8) & 0x7F)
+    squareC((m >> 8) & 0x7F)
 end
 
 function to_sq(m::SMove)

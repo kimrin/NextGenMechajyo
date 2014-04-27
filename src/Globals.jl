@@ -77,6 +77,7 @@ type SContextBB
 
     MoveMask::Array{SBitboard,1}
     DropTable::Array{Int64,2}
+    DropList::Array{(Piece,PieceType),2}
 
     function SContextBB()
         new() # return with garbage

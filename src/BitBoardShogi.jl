@@ -177,7 +177,7 @@ function testBB(bb::SContextBB)
     #     end
     # end
 
-    println(bb.DropTable)
+    # println(bb.DropTable)
 end
 
 function initBB(bb::SContextBB)
@@ -191,6 +191,8 @@ function initBB(bb::SContextBB)
     bb.BMagics = zeros(SBitboard,SSQUARE_NB)
     bb.RShifts = zeros(Uint32,SSQUARE_NB)
     bb.BShifts = zeros(Uint32,SSQUARE_NB)
+    bb.DropList = [(W_GI,GI) (W_KI,KI) (W_KA,KA) (W_HI,HI);
+                   (B_GI,GI) (B_KI,KI) (B_KA,KA) (B_HI,HI)]
 
     bb.SquareBB = SBitboard[(sbitboard(1)<<s) for s = SSQ_A1:SSQ_I9]
 

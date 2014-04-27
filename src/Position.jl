@@ -711,18 +711,18 @@ end
 # given square. Slider attacks use the occ bitboard to indicate occupancy.
 function attackers_to(sp::SPosition, bb::SContextBB, s::Square, occ::SBitboard)
     sum = sbitboard(0)
-    println("attackers_to: occ:")
+    #println("attackers_to: occ:")
     #println(pretty2(bb,occ))
     for c = WHITE:BLACK
         for pt = FU:RY
             p = smake_piece(c,pt)
-            sum |= attacks_from(sp, bb, p, s) & pieces(sp, color(c$1), pt) & occ
+            sum |= attacks_from(sp, bb, p, s) & pieces(sp, color(c$1), pt)
         end
-        sum |= attacks_bb(bb, smake_piece(c,KY), s, occ, true) & pieces(sp, color(c$1), KY) & occ
-        sum |= attacks_bb(bb, smake_piece(c,HI), s, occ, true) & pieces(sp, color(c$1), HI) & occ
-        sum |= attacks_bb(bb, smake_piece(c,KA), s, occ, true) & pieces(sp, color(c$1), KA) & occ
-        sum |= attacks_bb(bb, smake_piece(c,RY), s, occ, true) & pieces(sp, color(c$1), RY) & occ
-        sum |= attacks_bb(bb, smake_piece(c,UM), s, occ, true) & pieces(sp, color(c$1), UM) & occ
+        sum |= attacks_bb(bb, smake_piece(c,KY), s, occ, true) & pieces(sp, color(c$1), KY)
+        sum |= attacks_bb(bb, smake_piece(c,HI), s, occ, true) & pieces(sp, c, HI)
+        sum |= attacks_bb(bb, smake_piece(c,KA), s, occ, true) & pieces(sp, c, KA)
+        sum |= attacks_bb(bb, smake_piece(c,RY), s, occ, true) & pieces(sp, c, RY)
+        sum |= attacks_bb(bb, smake_piece(c,UM), s, occ, true) & pieces(sp, c, UM)
     end
         
     #println(pretty2(bb, sum))
@@ -734,7 +734,7 @@ end
 function legal(pos::SPosition, bb::SContextBB, m::SMove, pinned::SBitboard)
     us = pos.sideToMove
     from = from_sq(m)
-    println("from=",from)
+    #println("from=",from)
 
     if from == SSQ_DROP
         return true
@@ -742,12 +742,13 @@ function legal(pos::SPosition, bb::SContextBB, m::SMove, pinned::SBitboard)
     # If the moving piece is a king, check whether the destination
     # square is attacked by the opponent. Castling moves are checked
     # for legality during move generation.
-    println("attackers_to: joken bitboard")
-    println(pretty2(bb,(attackers_to(pos, bb, to_sq(m), pieces(pos,color(us$1))))))
-    println("joken = ", (attackers_to(pos, bb, to_sq(m), pieces(pos,color(us$1))))== sbitboard(0))
+
+    #println("attackers_to: joken bitboard")
+    ##println(pretty2(bb,((attackers_to(pos, bb, to_sq(m), pieces(pos,us)) & pieces(pos,color(us$1))))))
+    #println("joken = ", (attackers_to(pos, bb, to_sq(m), pieces(pos,color(us$1))))== sbitboard(0))
 
     if stype_of(piece_on(pos, from)) == OU
-        return false || (attackers_to(pos, bb, to_sq(m), pieces(pos,color(us$1))))== sbitboard(0)
+        return false || (attackers_to(pos, bb, to_sq(m), pieces(pos,us)) & pieces(pos,color(us$1)))== sbitboard(0)
     end
 
     # A non-king move is legal if and only if it is not pinned or it

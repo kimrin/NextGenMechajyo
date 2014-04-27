@@ -74,14 +74,17 @@ const FestivalSFEN = "l6nl/5+P1gk/2np1S3/p1p4Pp/3P2Sp1/1PPb2P1P/P5GS1/R8/LN4bKL 
 const NanaRokuFUSFEN = "lnsgkgsnl/1r5b1/ppppppppp/9/9/2P6/PP1PPPPPP/1B5R1/LNSGKGSNL w - 1"::ASCIIString # after +7776FU
 const AnnosanSFEN = "lns+B1gg+Rl/4L4/p1ppk3p/1p4p2/9/PP1PP1P+pP/2SKG2r1/+bN3s1+pL b GNPn2p 1"::ASCIIString # checkmate in 9moves
 const RyuOSatoWatanabe = "8l/1l+R2P3/p2pBG1pp/kps1p4/Nn1P2G2/P1P1P2PP/1PS6/1KSG3+r1/LN2+p3L w Sbgn3p 124"::ASCIIString
+
+const EvasionsCheck    = "lnsgkgsnl/1r5b1/pppp1pppp/9/9/4R4/PPPPPPPPP/1B7/LNSGKGSNL w p 1"::ASCIIString
+
 function mainLoop(bbb::SContextBB, uci::USI, omap::OptionMap, sock::Base.TcpSocket)
     # Position pos(StartFEN, false, Threads.main()); // The root position
     # pos = SPosition(bbb, StartSFEN, threadNumber(0))
     # pos = SPosition(bbb, FestivalSFEN, threadNumber(0))
     # pos = SPosition(bbb, NanaRokuFUSFEN, threadNumber(0))
     # pos = SPosition(bbb, AnnosanSFEN, threadNumber(0))
-    pos = SPosition(bbb, RyuOSatoWatanabe, threadNumber(0))
-
+    # pos = SPosition(bbb, RyuOSatoWatanabe, threadNumber(0))
+    pos = SPosition(bbb, EvasionsCheck, threadNumber(0))
 
     mov = false ? make(squareC(20), squareC(29), FU, uint32(0), pieceType(0)): SMOVE_NULL # if true, make +7776FU
 
@@ -91,34 +94,28 @@ function mainLoop(bbb::SContextBB, uci::USI, omap::OptionMap, sock::Base.TcpSock
     # print board!
     pretty(pos,mov)
 
-    tic()
+    #tic()
 
     #for i = 1:100000
     #    sml = SMoveList(pos, bbb, LEGAL)
     #end
     #Profile.print()
-    toc()
+    #toc()
     sml = SMoveList(pos, bbb, LEGAL)
     println("generated ",sml.last, " moves!")
     for s in sml.mlist
         println("$(move_to_san(smove(s.move)))")
     end
 
+    tic()
+    for i = 1:10000
+        sml = SMoveList(pos, bbb, LEGAL)
+    end
+    t = toc()
+    println("generate ",10000.0 / t, " genmoves/sec")
     #@iprofile report
 
-    #for i = 1:10000
-    #sml = SMoveList(pos, bbb, NON_EVASIONS)
-    #end
-    #t = toc()
-    #println("generate ",10000.0 / t, " moves/sec")
-
     # pos.sideToMove = color(pos.sideToMove$1)
-
-    # sml = SMoveList(pos, bbb, NON_EVASIONS)
-    # for s in sml.mlist
-    #     println("$(move_to_san(s.move))")
-    # end
-
 
     while true
         line = readline(sock)
