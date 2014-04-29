@@ -1,5 +1,6 @@
 # thinking time (flat)
 const MAXTHINKINGTIME = 12 # (secs)
+
 using IProfile
 
 # NodeType
@@ -89,7 +90,7 @@ function startThinking(pos::SPosition, bb::SContextBB, sock::Base.TcpSocket)
     RootMoves = RootMove[]::Array{RootMove,1}
     for sm in rootMoveList.mlist
         push!(RootMoves, RootMove(smove(sm.move)))
-        println("$(move_to_san(smove(sm.move)))")
+        #println("$(move_to_san(smove(sm.move)))")
     end
 
     m = id_loop(pos, bb, sock, RootMoves); # Let's start searching !
@@ -213,8 +214,6 @@ function id_loop(pos::SPosition, bb::SContextBB, sock::Base.TcpSocket, RootMoves
         depth += 1
     end
 
-    @iprofile report
-
     if length(RootMoves) == 0
         return SMOVE_NONE
     else
@@ -236,7 +235,7 @@ function uci_pv(pos::SPosition, bb::SContextBB, depth::Int64, alpha::Value, beta
     #        selDepth = Threads[i]->maxPly;
 
     if (length(RootMoves) == 0 )||(RootMoves[1].pv[1] == SMOVE_NONE)
-        println(sock, "bestmove resign")
+        #println(sock, "bestmove resign")
         return
     end
 
@@ -262,7 +261,7 @@ function uci_pv(pos::SPosition, bb::SContextBB, depth::Int64, alpha::Value, beta
     end
 end
 
-@iprofile begin
+#@iprofile begin
 function searchX(NT::Int64, pos::SPosition, bb::SContextBB, ss::Int64, alpha::Value, beta::Value, depth::Int64, cutNode::Bool, ply::Int64, RootMoves::Array{RootMove,1}) # ss is dummy
     PvNode   = (NT == PV || NT == Root || NT == SplitPointPV || NT == SplitPointRoot)
     SpNode   = (NT == SplitPointPV || NT == SplitPointNonPV || NT == SplitPointRoot)
@@ -344,7 +343,8 @@ function searchX(NT::Int64, pos::SPosition, bb::SContextBB, ss::Int64, alpha::Va
         bestValue = alpha
     end
 
-    # TT store
+    # TT store (not implemented yet)
+
     if length(RootMoves) > 0
         if (length(RootMoves[1].pv) <= (ply+1))
             push!(RootMoves[1].pv,bestMove)
@@ -355,4 +355,4 @@ function searchX(NT::Int64, pos::SPosition, bb::SContextBB, ss::Int64, alpha::Va
 
     bestValue
 end
-end
+#end

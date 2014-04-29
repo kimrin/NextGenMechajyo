@@ -483,7 +483,7 @@ function generateLEGAL(pos::SPosition, bb::SContextBB, mlist::SMoveList)
 
     end
 
-    mlist.mlist = newml
+    mlist.mlist = poorSort(pos, bb, newml, che > sbitboard(0)) # reverse(newml)
     mlist.last = length(newml)
     # while curr != ende
     #     #println("hi")
@@ -502,4 +502,46 @@ function generateLEGAL(pos::SPosition, bb::SContextBB, mlist::SMoveList)
     #     end
     # end
     mlist.last
+end
+
+function poorSort(pos::SPosition, bb::SContextBB, mlist::Array{SExtMove,1}, eva::Bool)
+    li = mlist
+    newList = SExtMove[]::Array{SExtMove,1}
+
+    if eva == true # not sorting if node is in check
+        return li
+    end
+
+    for em in li
+        move = smove(em.move)
+        em.score = 0
+        b = attackers_to(pos, bb, king_square(pos, color(pos.sideToMove$1)))
+        from = from_sq(move)
+        if from == SSQ_DROP
+            continue
+        end
+        c = bb.SquareBB[from+1]
+        if (b & c) > sbitboard(0)
+            em.score = 5000000
+            push!(newList,em)
+        end
+    end
+
+    # pick up capture moves
+    for em in li
+        move = smove(em.move)
+        if piece_on(pos, to_sq(move)) > NO_PIECE
+            em.score = 1000000
+            push!(newList,em)
+        end
+    end
+        
+    # salvage other moves
+    for em in li
+        if em.score <= 0
+            push!(newList,em)
+        end
+    end
+
+    newList
 end

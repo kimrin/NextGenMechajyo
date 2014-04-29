@@ -69,6 +69,7 @@
 
 using Mechajyo
 using ArgParse
+using IProfile
 
 function parse_commandline()
     s = ArgParseSettings()
@@ -144,6 +145,7 @@ function main(game::Uint64, args)
             end
             close(sock)
         end
+        @iprofile report
     end
 end
 

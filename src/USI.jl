@@ -310,7 +310,7 @@ function move_to_usi(pos::SPosition, bb::SContextBB, m::SMove)
     pi = spiece(m)
 
     if m != SMOVE_NONE
-        println("move:",move_to_san(m))
+        #println("move:",move_to_san(m))
         if from == SSQ_DROP
             dropstr = string(num2usiDict[pi],"*")
             tostr   = USISQNAME[to+1]

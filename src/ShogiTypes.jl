@@ -210,7 +210,7 @@ function sflip(s::Square) # cannot overwritten ~(Int32,) so tentative name "sfli
 end
 
 # not immutable...
-immutable type SExtMove
+type SExtMove
     move::Int64
     score::Int32
 end

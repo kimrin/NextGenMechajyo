@@ -768,11 +768,28 @@ end
 function legal(pos::SPosition, bb::SContextBB, m::SMove, pinned::SBitboard)
     us = pos.sideToMove
     from = from_sq(m)
+    to   = to_sq(m)
+    pi   = spiece(m)
     #println("from=",from)
 
-    if from == SSQ_DROP
+    if from == SSQ_DROP # all drop moves are treat as legal
         return true
     end
+
+    # reject illegal moves that cannot be going to anywhere when moved
+    if (srank_of(to) == RANK_1)&&((pi == B_FU)||(pi == B_KY)||(pi == B_KE))
+        return false
+    end
+    if (srank_of(to) == RANK_2)&&(pi == B_KE)
+        return false
+    end
+    if (srank_of(to) == RANK_9)&&((pi == W_FU)||(pi == W_KY)||(pi == W_KE))
+        return false
+    end
+    if (srank_of(to) == RANK_8)&&(pi == W_KE)
+        return false
+    end
+
     # If the moving piece is a king, check whether the destination
     # square is attacked by the opponent. Castling moves are checked
     # for legality during move generation.
