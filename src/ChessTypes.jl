@@ -138,14 +138,14 @@ const BLACK    = int8(1)
 const NO_COLOR = int8(2)
 const COLOR_NB = int64(2) # may be use as array index...
 
-typealias Depth Int32
-const ONE_PLY = int32(2)
-const DEPTH_ZERO          = int32(0 * ONE_PLY)
-const DEPTH_QS_CHECKS     = int32(0 * ONE_PLY)
-const DEPTH_QS_NO_CHECKS  = int32(-1 * ONE_PLY)
-const DEPTH_QS_RECAPTURES = int32(-5 * ONE_PLY)
+typealias Depth Int64
+const ONE_PLY = int64(2)
+const DEPTH_ZERO          = int64(0 * ONE_PLY)
+const DEPTH_QS_CHECKS     = int64(0 * ONE_PLY)
+const DEPTH_QS_NO_CHECKS  = int64(-1 * ONE_PLY)
+const DEPTH_QS_RECAPTURES = int64(-5 * ONE_PLY)
 
-const DEPTH_NONE          = int32(-127 * ONE_PLY)
+const DEPTH_NONE          = int64(-127 * ONE_PLY)
 
 typealias Square Int32
 squareC = int32

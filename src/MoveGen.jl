@@ -37,6 +37,7 @@ type SMoveList
         n.cur  = 0 # zero origin
         n.last = 0 # zero origin
         n.mlist = SExtMove[]::Array{SExtMove,1}
+        sizehint(n.mlist, 600)
         n.last = generate(gt, pos, bb, n, true) # only returns zero origin based last index of the array
         # no need to push SMOVE_NONE to the last of the array: because we already know the size of the array
         # println(n)
@@ -82,15 +83,18 @@ function move_to_san(m::SMove)
     from = from_sq(m)
     to   = to_sq(m)
     pt   = promotion_type(m)
-
+    capt = captured_of(m)
+    #println("capt = ", capt)
+    tebanstr = (spiece(m) > B_OFFSET)? "△ ":"▲ "
+    captstr = (capt > NO_PIECE_TYPE) ? KOMASTR_SHORT[capt]*"取り":""
     fromstr = square_to_jstring(from)
     tostr   = square_to_jstring(to)
     ptstr   = KOMASTR_SHORT[pt]
     
     if from == SSQ_DROP
-        return "$(tostr)$(ptstr)打ち"
+        return string(tebanstr,"$(tostr)$(ptstr)打ち")
     else
-        return string("$(tostr)$(ptstr)(",fromstr,")")
+        return string(tebanstr,"$(tostr)$(ptstr)(",fromstr,")",captstr)
     end
 end
 
@@ -195,7 +199,7 @@ function fumoves(from::Square, b::SBitboard, pos::SPosition, mlist::SMoveList, p
         b = ls.b
         add!(mlist, make(from, int32(ls.sq), piece, uint32(0), stype_of(pos.board[ls.sq+1])))
         if CanBePromoted(from, int32(ls.sq), piece)
-            add!(mlist, make(from, int32(ls.sq), ppiece, uint32(0), stype_of(pos.board[ls.sq+1])))
+            add!(mlist, make(from, int32(ls.sq), ppiece, SPROMOTION, stype_of(pos.board[ls.sq+1])))
         end
     end
 end
@@ -247,7 +251,7 @@ function generate_moves(Pt::PieceType, Checks::Bool, pos::SPosition, bb::SContex
         if Checks == true
             slideType, isKY = GetSlideType(Pt)
 
-            if (isSlide == true && bb.PseudoAttacks[slideType+1][from+1] & ((isKY == true)?forward_bb(bb, c, ksq+1):MaskOfBoard) & ci.checkSq[Pt+1] > sbitboard(0))
+            if (isSlide == true && bb.PseudoAttacks[slideType+1,from+1] & ((isKY == true)?forward_bb(bb, c, ksq+1):MaskOfBoard) & ci.checkSq[Pt+1] > sbitboard(0))
                 
                 continue
             end
@@ -285,9 +289,14 @@ function generate_moves(Pt::PieceType, Checks::Bool, pos::SPosition, bb::SContex
         while b > sbitboard(0)
             pop_lsb(b, ls)
             b = ls.b
+            #if stype_of(pos.board[ls.sq+1]) > NO_PIECE_TYPE
+            #    println("*")
+            #    println("HEX:", hex(smove(make(from, int32(ls.sq), piece, uint32(0), stype_of(pos.board[ls.sq+1])))))
+            #    println("$(move_to_san(smove(make(from, int32(ls.sq), piece, uint32(0), stype_of(pos.board[ls.sq+1])))))")
+            #end
             add!(mlist, make(from, int32(ls.sq), piece, uint32(0), stype_of(pos.board[ls.sq+1])))
             if CanBePromoted(from, int32(ls.sq), piece)
-                add!(mlist, make(from, int32(ls.sq), ppiece, uint32(0), stype_of(pos.board[ls.sq+1])))
+                add!(mlist, make(from, int32(ls.sq), ppiece, SPROMOTION, stype_of(pos.board[ls.sq+1])))
             end
         end
     end
@@ -326,7 +335,7 @@ function generate_all(Us::Color, gt::GenType, pos::SPosition, bb::SContextBB,
         while b > sbitboard(0)
             pop_lsb(b, ls)
             b = ls.b
-            add!(mlist, make(ksq, int32(ls.sq), smake_piece(Us, OU), uint32(0),NO_PIECE_TYPE))
+            add!(mlist, make(ksq, int32(ls.sq), smake_piece(Us, OU), uint32(0), stype_of(pos.board[ls.sq+1])))
         end
     end
     mlist.last
@@ -384,10 +393,12 @@ end
 # generate<EVASIONS> generates all pseudo-legal check evasions when the side
 # to move is in check. Returns a pointer to the end of the move list.
 function generateEVASIONS(pos::SPosition, bb::SContextBB, mlist::SMoveList)
+    #println("evasions")
     us = pos.sideToMove
     ksq = king_square(pos, us)
     sliderAttacks = sbitboard(0)
-    sliders = checkers(pos.st) & (pieces(pos,KY)|pieces(pos,KA)|pieces(pos,HI)|pieces(pos,UM)|pieces(pos,RY))
+    che = attackers_to(pos, bb, ksq) & pieces(pos,color(side_to_move(pos)$1))
+    sliders = che & (pieces(pos,KY)|pieces(pos,KA)|pieces(pos,HI)|pieces(pos,UM)|pieces(pos,RY))
 
     # Find all the squares attacked by slider checkers. We will remove them from
     # the king evasions in order to skip known illegal moves, which avoids any
@@ -398,23 +409,38 @@ function generateEVASIONS(pos::SPosition, bb::SContextBB, mlist::SMoveList)
         sliderAttacks |= bb.LineBB[checksq+1,ksq+1] $ bb.SquareBB[checksq+1]
     end
 
+    # ki = attacks_from(pos, bb, smake_piece(us,OU), ksq)
+
+    # boo = true
+    # while ki > sbitboard(0)
+    #     sq = squareC(trailing_zeros(ki))
+    #     ki = ki & (ki - 1)
+    #     if attackers_to(pos, bb, sq, MaskOfBoard) == sbitboard(0)
+    #         boo = false
+    #     end
+    # end
+
+    # tentatively commented out
+    #if boo == true
+    #    return mlist.last # check mate!
+    #end
+
     # Generate evasions for king, capture and non capture moves
     b = attacks_from(pos, bb, smake_piece(us,OU), ksq) & (~pieces(pos,us)&MaskOfBoard) & (~sliderAttacks&MaskOfBoard)
 
     while b > sbitboard(0)
         sq = trailing_zeros(b)
         b = b & (b - 1)
-        add!(mlist, make(ksq, squareC(sq), smake_piece(us, OU), UINT32ZERO,NO_PIECE_TYPE))
+        add!(mlist, make(ksq, squareC(sq), smake_piece(us, OU), UINT32ZERO, stype_of(pos.board[sq+1])))
     end
 
-    if more_than_one(checkers(pos.st)) > sbitboard(0)
+    if more_than_one(che) > sbitboard(0)
         return mlist.last # Double check, only a king move can save the day
     end
 
     # Generate blocking evasions or captures of the checking piece
-    checksq = trailing_zeros(checkers(pos.st))
+    checksq = trailing_zeros(che)
     target = between_bb(bb, squareC(checksq), ksq) | bb.SquareBB[checksq+1]
-
     if us == WHITE
         t = generate_all(WHITE, EVASIONS, pos, bb, mlist, target)
         return t
@@ -435,7 +461,12 @@ function generateLEGAL(pos::SPosition, bb::SContextBB, mlist::SMoveList)
     pinned = pinned_pieces(pos, bb, side_to_move(pos))
     ksq = king_square(pos, side_to_move(pos))
 
-    ende = checkers(st) > sbitboard(0) ? generateEVASIONS(pos, bb, mlist): generate(NON_EVASIONS, pos, bb, mlist) 
+    #println("checkers:")
+    #println(pretty2(bb,checkers(st)))
+
+    che = attackers_to(pos, bb, ksq) & pieces(pos,color(side_to_move(pos)$1))
+
+    ende = che > sbitboard(0) ? generateEVASIONS(pos, bb, mlist): generate(NON_EVASIONS, pos, bb, mlist) 
     #println("ende=$ende")
 
     newml = SExtMove[]::Array{SExtMove,1}
@@ -453,7 +484,7 @@ function generateLEGAL(pos::SPosition, bb::SContextBB, mlist::SMoveList)
     end
 
     mlist.mlist = newml
-
+    mlist.last = length(newml)
     # while curr != ende
     #     #println("hi")
     #     m = smove(mlist.mlist[curr].move)
@@ -470,5 +501,5 @@ function generateLEGAL(pos::SPosition, bb::SContextBB, mlist::SMoveList)
     #         curr += 1
     #     end
     # end
-    length(mlist.mlist)
+    mlist.last
 end

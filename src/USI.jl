@@ -78,13 +78,16 @@ const RyuOSatoWatanabe = "8l/1l+R2P3/p2pBG1pp/kps1p4/Nn1P2G2/P1P1P2PP/1PS6/1KSG3
 const EvasionsCheck    = "lnsgkgsnl/1r5b1/pppp1pppp/9/9/4R4/PPPPPPPPP/1B7/LNSGKGSNL w p 1"::ASCIIString
 
 function mainLoop(bbb::SContextBB, uci::USI, omap::OptionMap, sock::Base.TcpSocket)
+
+    srand(time_ns())
+
     # Position pos(StartFEN, false, Threads.main()); // The root position
-    # pos = SPosition(bbb, StartSFEN, threadNumber(0))
+    pos = SPosition(bbb, StartSFEN, threadNumber(0))
     # pos = SPosition(bbb, FestivalSFEN, threadNumber(0))
     # pos = SPosition(bbb, NanaRokuFUSFEN, threadNumber(0))
     # pos = SPosition(bbb, AnnosanSFEN, threadNumber(0))
     # pos = SPosition(bbb, RyuOSatoWatanabe, threadNumber(0))
-    pos = SPosition(bbb, EvasionsCheck, threadNumber(0))
+    # pos = SPosition(bbb, EvasionsCheck, threadNumber(0))
 
     mov = false ? make(squareC(20), squareC(29), FU, uint32(0), pieceType(0)): SMOVE_NULL # if true, make +7776FU
 
@@ -101,19 +104,29 @@ function mainLoop(bbb::SContextBB, uci::USI, omap::OptionMap, sock::Base.TcpSock
     #end
     #Profile.print()
     #toc()
-    sml = SMoveList(pos, bbb, LEGAL)
-    println("generated ",sml.last, " moves!")
-    for s in sml.mlist
-        println("$(move_to_san(smove(s.move)))")
-    end
+    # sml = SMoveList(pos, bbb, LEGAL)
+    # println("generated ",sml.last, " moves!")
+    #for s in sml.mlist
+    #    println("$(move_to_san(smove(s.move)))")
+    #end
 
-    tic()
-    for i = 1:10000
-        sml = SMoveList(pos, bbb, LEGAL)
-    end
-    t = toc()
-    println("generate ",10000.0 / t, " genmoves/sec")
+    # tic()
+    # cnt = 0
+    # cnt = perft(pos, bbb, 8)
+    # # cnt = do_redo_test(pos, bbb, 4)
+    # println("node size = ", cnt)
+    # pretty(pos,mov)
+    # toc()
+
+    #tic()
+    #for i = 1:10000
+    #    sml = SMoveList(pos, bbb, LEGAL)
+    #end
+    #t = toc()
+    #println("generate ",10000.0 / t, " genmoves/sec")
     #@iprofile report
+
+    # println(pretty2(bbb,pieces(pos)))
 
     # pos.sideToMove = color(pos.sideToMove$1)
 
@@ -170,9 +183,9 @@ function mainLoop(bbb::SContextBB, uci::USI, omap::OptionMap, sock::Base.TcpSock
         elseif token == "usinewgame"
             # TT.clear();
         elseif token == "go"
-            # go(pos, is);
+            go(pos, bbb, sock, comlist)
         elseif token == "position"
-            # position(pos, is);
+            position(pos, bbb, comlist)
         elseif token == "setoption"
             # setoption(is);
         elseif token == "flip"
@@ -184,8 +197,135 @@ function mainLoop(bbb::SContextBB, uci::USI, omap::OptionMap, sock::Base.TcpSock
             pretty(pos,SMOVE_NULL)
         elseif token == "isready"
             println(sock, "readyok")
+        elseif token == "gameover"
+            println((comlist[2] == "lose")?"負け":"勝ち！")
         else
+
           println("Unknown command: ", comlist)
         end
     end
+end
+
+# position() is called when engine receives the "position" UCI command.
+# The function sets up the position described in the given FEN string ("fen")
+# or the starting position ("startpos") and then makes the moves given in the
+# following move list ("moves").
+function position(pos::SPosition, bb::SContextBB, comlist::Array{SubString{ASCIIString},1})
+    i = 2
+    token = comlist[i]
+    if token == "startpos"
+        sfen = StartSFEN
+        i = 4
+    elseif token == "sfen"
+        sfen = comlist[3]
+        i = 4
+        while true
+            token = comlist[i]
+            if token == "moves"
+                break
+            end
+            sfen *= " " * token
+            i += 1
+        end
+        i += 1 # skip "moves"
+    else
+        return # nothing to do
+    end
+
+    pos.board = zeros(Piece, SSQUARE_NB)
+    pos.byTypeBB = zeros(SBitboard, SPIECE_TYPE_NB+1)
+    pos.byColorBB = zeros(SBitboard, COLOR_NB)
+    pos.pieceCount = zeros(Int32, COLOR_NB, SPIECE_TYPE_NB)
+    pos.pieceList = zeros(Square, 41, SPIECE_TYPE_NB, COLOR_NB) # reverse order (column-maj)
+    pos.index    =  zeros(Int32, SSQUARE_NB)
+    pos.capturedPieces = zeros(Int32,COLOR_NB,SPIECE_TYPE_NB)
+    set(bb, pos, sfen, threadNumber(0))
+
+    len = length(comlist)
+    while i <= len
+        do_move(pos, bb, smove(usi_to_move(pos, bb, comlist[i])), SStateInfo())
+        i += 1
+    end
+end
+
+const usiDict = {"P"=>FU,"L"=>KY,"N"=>KE,"S"=>GI,
+                 "G"=>KI,"B"=>KA,"R"=>HI,
+                 "p"=>FU,"l"=>KY,"n"=>KE,"s"=>GI,
+                 "g"=>KI,"b"=>KA,"r"=>HI}::Dict{Any,Any}
+
+function usi_to_move(pos::SPosition, bb::SContextBB, st::SubString{ASCIIString})
+    nari = false
+
+    if '1' <= st[1] <= '9' # normal move
+        from = squareC(findPosition(bb,st[1:2]))
+        to = squareC(findPosition(bb,st[3:4]))
+        if length(st) == 5
+            if st[5] == '+'
+                nari = true
+            end
+        end
+        if pos.board[from+1] == 0
+            println(pos.board)
+            throw("from is empty!")
+        end
+        return make(from, to, (nari == true)? piece(pos.board[from+1] + PT_PROMOTE_OFFSET):pos.board[from+1], (nari == true)? uint32(2):uint32(0), pos.board[to+1])
+    else # drops
+        from = SSQ_DROP
+        koma = get(usiDict, st[1:1], 0)
+        to   = squareC(findPosition(bb,st[3:4]))
+        return make(from, to, piece(koma), uint32(0), pieceType(0))
+    end
+end
+
+function findPosition(bb::SContextBB, st::SubString{ASCIIString}) # 0 origin
+    fromSuji::Int = int(st[1] - '0')
+    fromDan::Int  = int(st[2] - '`')
+    ##println("(suji,dan) = ",fromSuji, ",",fromDan)
+    ##println("idx=", (9-fromDan)*SFILE_NB + (9-fromSuji))
+    return (9-fromDan)*SFILE_NB + (9-fromSuji)
+    # return BOARDINDEX[fromSuji,fromDan] - 1
+end
+
+const USISQNAME = [
+                   "9i","8i","7i","6i","5i","4i","3i","2i","1i",
+                   "9h","8h","7h","6h","5h","4h","3h","2h","1h",
+                   "9g","8g","7g","6g","5g","4g","3g","2g","1g",
+                   "9f","8f","7f","6f","5f","4f","3f","2f","1f",
+                   "9e","8e","7e","6e","5e","4e","3e","2e","1e",
+                   "9d","8d","7d","6d","5d","4d","3d","2d","1d",
+                   "9c","8c","7c","6c","5c","4c","3c","2c","1c",
+                   "9b","8b","7b","6b","5b","4b","3b","2b","1b",
+                   "9a","8a","7a","6a","5a","4a","3a","2a","1a",
+                   ]::Array{ASCIIString,1}
+
+const num2usiDict = {W_FU=>"P",W_KY=>"L",W_KE=>"N",W_GI=>"S",
+                     W_KI=>"G",W_KA=>"B",W_HI=>"R",
+                     B_FU=>"P",B_KY=>"L",B_KE=>"N",B_GI=>"S",
+                     B_KI=>"G",B_KA=>"B",B_HI=>"R"}::Dict{Any,Any}
+
+function move_to_usi(pos::SPosition, bb::SContextBB, m::SMove)
+    flag = type_of(m)
+    from = from_sq(m)
+    to   = to_sq(m)
+    pi = spiece(m)
+
+    if m != SMOVE_NONE
+        println("move:",move_to_san(m))
+        if from == SSQ_DROP
+            dropstr = string(num2usiDict[pi],"*")
+            tostr   = USISQNAME[to+1]
+            return string(dropstr,tostr)
+        else
+            fromstr = USISQNAME[from+1]
+            tostr   = USISQNAME[to+1]
+            prostr = (flag == SPROMOTION)?"+":""
+            return string(fromstr,tostr,prostr)
+        end
+    else
+        return ""
+    end
+end
+
+function go(pos::SPosition, bb::SContextBB, sock::Base.TcpSocket, comlist::Array{SubString{ASCIIString},1})
+    startThinking(pos, bb, sock)
 end

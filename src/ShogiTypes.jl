@@ -34,9 +34,9 @@ typealias SMoveType Uint32
 smoveType = uint32
 
 const SNORMAL    = uint32(0)
-const SCAPTURED  = uint32(1 << 24)
-const SPROMOTION = uint32(1 << 25)
-const SDROPS     = uint32(1 << 26)
+const SCAPTURED  = uint32(1)
+const SPROMOTION = uint32(2)
+const SDROPS     = uint32(4)
 
 const SCAPTPIECE_OFFSET = uint32(1 << 28)
 const SCAPTPIECE_MASK   = uint32(0xf << 28)
@@ -276,12 +276,21 @@ function to_sq(m::SMove)
 end
 
 function type_of(m::SMove)
-    MoveType(m & (7 << 24))
+    smoveType((m & (7 << 24)) >>> 24)
+end
+
+function captured_of(m::SMove)
+    pieceType((m & (0x0000000f << 28)) >>> 28)
 end
 
 function promotion_type(m::SMove) # in Shogi, promotion type is identical to piece type
     # pieceType(((m >> 25) & 0x1 == 0x1) ? (m >> 16) & 0xf: 0)
     pieceType((m >>> 16) & 0xf)
+end
+
+function spiece(m::SMove) # in Shogi, promotion type is identical to piece type
+    # pieceType(((m >> 25) & 0x1 == 0x1) ? (m >> 16) & 0xf: 0)
+    pieceType((m >>> 16) & 0x1f)
 end
 
 function smake_move(from::Square, to::Square)
@@ -290,7 +299,7 @@ end
 
 function make(from::Square, to::Square, p::Piece, flag::Uint32, capt::PieceType)
     # re-arrange function list! Also not included and-ing with masks!
-    to | (from << 8) | (p << 16) | (flag << 24) | (capt << 28)
+    (to&0x0000007f) | ((from << 8)&0x00007f00) | ((p << 16)&0x001f0000) | ((flag << 24)&0x07000000) | ((capt << 28)&0xf0000000)
 end
 
 function is_ok(m::SMove)

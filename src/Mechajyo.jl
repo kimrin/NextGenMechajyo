@@ -35,8 +35,11 @@ include("RKiss.jl")
 include("BitCount.jl")
 include("BitBoards.jl")
 include("Globals.jl")
+include("TT.jl")
 include("Position.jl")
 include("MoveGen.jl")
+include("Evaluate.jl")
+include("Search.jl")
 
 include("UCI.jl")
 include("USI.jl")
@@ -47,7 +50,7 @@ include("Misc.jl")
 # Constants
 
 const MECHA_JYOSHI_SHOGI = int64(2)
-const MECHAJYO_VERSION = "0.02"
+const MECHAJYO_VERSION = "NextGen 0.1"
 
 const MAX_THREADS = int64(64) # Because SplitPoint::slavesMask is a uint64_t
 const MAX_SPLITPOINTS_PER_THREAD = int64(8)

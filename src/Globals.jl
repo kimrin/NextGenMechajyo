@@ -1,3 +1,27 @@
+# The TTEntry is the 128 bit transposition table entry, defined as below:
+#
+# key: 32 bit
+# move: 16 bit
+# bound type: 8 bit
+# generation: 8 bit
+# value: 16 bit
+# depth: 16 bit
+# static value: 16 bit
+
+type TTEntry
+    key32::Uint32
+    move32::SMove
+    bound8::Uint8
+    generation8::Uint8
+    value16::Int16
+    depth16::Int16
+    evalValue::Int16
+
+    function TTEntry()
+        new() # passing with garbage
+    end
+end
+
 # One thing should avoid in Julia language is, the global variables.
 # So we are gathering all global variables into this Context class
 # and carry these references to everywhere.
@@ -78,6 +102,10 @@ type SContextBB
     MoveMask::Array{SBitboard,1}
     DropTable::Array{Int64,2}
     DropList::Array{(Piece,PieceType),2}
+    PieceValue::Array{Int64,1}
+
+    TT::Dict{Uint64,TTEntry}
+    generation::Int64
 
     function SContextBB()
         new() # return with garbage

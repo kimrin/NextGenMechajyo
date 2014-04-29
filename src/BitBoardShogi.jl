@@ -83,7 +83,7 @@ function pretty2(bb::SContextBB, b::SBitboard)
     for rank = RANK_9:int32(-1):RANK_1
         for file = FILE_A:FILE_I
             sq = sfile_rank(file,rank)
-            s *= (((b & bb.SquareBB[sq+1]) > 0) ? "X" : ".")
+            s *= (((b & bb.SquareBB[sq+1]) > 0) ? "X" : "_")
         end
         s *= "|$(rank+1)\n"
     end
@@ -180,6 +180,21 @@ function testBB(bb::SContextBB)
     # println(bb.DropTable)
 end
 
+const DPawn         =   87
+const DLance        =  232
+const DKnight       =  257
+const DProPawn      =  534
+const DProLance     =  489
+const DSilver       =  369
+const DProKnight    =  510
+const DProSilver    =  495
+const DGold         =  444
+const DBishop       =  569
+const DRook         =  642
+const DHorse        =  827
+const DDragon       =  945
+const DKing         = 15000
+
 function initBB(bb::SContextBB)
     bb.RTable = zeros(SBitboard, 0x19000) # Storage space for rook attacks
     bb.BTable = zeros(SBitboard, 0x1480)  # Storage space for bishop attacks
@@ -193,6 +208,14 @@ function initBB(bb::SContextBB)
     bb.BShifts = zeros(Uint32,SSQUARE_NB)
     bb.DropList = [(W_GI,GI) (W_KI,KI) (W_KA,KA) (W_HI,HI);
                    (B_GI,GI) (B_KI,KI) (B_KA,KA) (B_HI,HI)]
+
+    bb.TT = Dict{Uint64,TTEntry}()
+
+    sizehint(bb.TT, 1000000) # trivial treatment...
+    bb.generation = 0
+
+    bb.PieceValue = [    0,    DPawn,    DLance,    DKnight,    DSilver, DGold, DBishop,   DRook,
+                     DKing, DProPawn, DProLance, DProKnight, DProSilver,     0, DHorse,  DDragon]
 
     bb.SquareBB = SBitboard[(sbitboard(1)<<s) for s = SSQ_A1:SSQ_I9]
 

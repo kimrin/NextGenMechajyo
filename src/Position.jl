@@ -28,9 +28,10 @@ type SStateInfo # for Shogi
     # may be nothing without followings...
     checkersBB::SBitboard
     capturedType::PieceType
+    pliesFromNull::Int64
     previous::SStateInfo
     function SStateInfo()
-        new(sbitboard(0),NO_PIECE_TYPE)
+        new(sbitboard(0),NO_PIECE_TYPE,int32(0))
     end
 end
 
@@ -84,10 +85,13 @@ type SPosition
     # Other info
     startState::SStateInfo
     nodes::Uint64
-    gamePly::Int32
+    gamePly::Int64
     sideToMove::Color
     thisThread::ThreadNumber
     st::SStateInfo
+    stop::Bool
+    SearchTime::Int64
+    nodes::Int64
 
     function SPosition(p::Position, t::ThreadNumber)
         p.thisThread = t
@@ -104,6 +108,7 @@ type SPosition
         n.pieceList = zeros(Square, 41, SPIECE_TYPE_NB, COLOR_NB) # reverse order (column-maj)
         n.index    =  zeros(Int32, SSQUARE_NB)
         n.capturedPieces = zeros(Int32,COLOR_NB,SPIECE_TYPE_NB)
+        n.stop = false
 
         set( sbb, n, sf, t)
         n
@@ -121,12 +126,14 @@ type SCheckInfo
     # CheckInfo c'tor
     function SCheckInfo(pos::SPosition, bb::SContextBB)
         n = new()
-        them = side_to_move(pos)$1
+        them = color(side_to_move(pos)$1)
         n.ksq = king_square(pos,them)
         ksq = n.ksq
 
-        n.pinned = pinned_pieces(pos, side_to_move(pos))
-        n.dcCandidates = discovered_check_candidates(pos)
+        n.checkSq = zeros(SBitboard, SPIECE_TYPE_NB)
+
+        n.pinned = pinned_pieces(pos, bb, side_to_move(pos))
+        n.dcCandidates = discovered_check_candidates(pos, bb)
 
         n.checkSq[FU] = attacks_from(pos, bb, smake_piece(them,FU), ksq)
         n.checkSq[KE] = attacks_from(pos, bb, smake_piece(them,KE), ksq)
@@ -146,6 +153,13 @@ type SCheckInfo
         n.checkSq[HI] = attacks_from(pos, bb, smake_piece(them,HI), ksq, true)
         n.checkSq[UM] |= attacks_from(pos, bb, smake_piece(them,UM), ksq, true)
         n.checkSq[RY] |= attacks_from(pos, bb, smake_piece(them,RY), ksq, true)
+
+        # for p = FU:RY
+        #     if n.checkSq[p] > sbitboard(0)
+        #         println(KOMASTR_SHORT[p])
+        #         println(pretty2(bb, n.checkSq[p]))
+        #     end
+        # end
 
         n
     end
@@ -258,7 +272,16 @@ function pretty(pos::SPosition, move::SMove)
             if koma == NO_PIECE
 	        print("\e[36m ..  \e[30m ")
             else
-                komamoji = KOMASTR[koma&0x0f]
+                ko = koma& 0x0000000f
+                if (koma <= 0)||(koma > 0x1f)||(koma == 0x10)
+                    println("bound error: koma=", koma)
+                    quit()
+                end
+                if (ko <= 0)||(ko > 15)
+                    println("bounderror:ko=",ko)
+                    quit()
+                end
+                komamoji = KOMASTR[ko]
                 if koma < B_OFFSET
                     if moveFlag
                         print("\e[31m+")
@@ -269,7 +292,7 @@ function pretty(pos::SPosition, move::SMove)
                     end
                 elseif B_OFFSET < koma < SPIECE_NB
                     if moveFlag
-                        print("\e[31m+")
+                        print("\e[31m-")
                         print(KOMASTR[koma&0x0f],"\e[30m ")
                     else
                         print("\e[30m-")
@@ -569,12 +592,17 @@ function set_state(pos::SPosition, bb::SContextBB, si::SStateInfo)
 end
 
 function put_piece(sbb::SContextBB, sp::SPosition, s::Square, c::Color, pt::PieceType)
+    if pt == 0
+        println("illegal piece: pieceType = ", pt)
+        quit()
+    end
     sp.board[s+1]               = smake_piece( c, pt)
     sp.byTypeBB[SALL_PIECES+1] |= sbb.SquareBB[s+1]
     sp.byTypeBB[pt+1]          |= sbb.SquareBB[s+1]
     sp.byColorBB[c+1]          |= sbb.SquareBB[s+1]
     sp.index[s+1]               = sp.pieceCount[c+1,pt+1]
     sp.pieceCount[c+1,pt+1] += 1
+    #println("$(sp.index[s+1]+1),$(pt+1),$(c+1) = s")
     sp.pieceList[sp.index[s+1]+1,pt+1,c+1] = s
 end
 
@@ -639,7 +667,11 @@ function list(sp::SPosition, c::Color, pt::PieceType)
 end
 
 function king_square(sp::SPosition, c::Color)
-    sp.pieceList[1, OU+1, c+1]
+    ksq = sp.pieceList[1, OU+1, c+1]
+    if (ksq >= SSQ_NONE)
+        throw("illegal OU position in pieceList")
+    end
+    ksq
 end
 
 function checkers(st::SStateInfo)
@@ -658,15 +690,17 @@ function check_blockers(pos::SPosition, bb::SContextBB, c::Color, kingColor::Col
     pinners = sbitboard(0)
     result  = sbitboard(0)
     ksq = king_square(pos, kingColor)
+    if ksq >= SSQ_NONE
+        println("ksq overflow:", ksq)
+        throw("ksq in check_blockers")
+    end
 
     # Pinners are sliders that give check when a pinned piece is removed
 
     # TODO: Should be verifing in another times!
-    pinners = (pieces(pos,HI) & bb.PseudoAttacks[ROOK+1,ksq+1]
-               | pieces(pos,KA) & bb.PseudoAttacks[BISHOP+1,ksq+1]
-               | pieces(pos,KY) & bb.PseudoAttacks[ROOK+1,ksq+1] & forward_bb(bb, c, ksq)
-               | pieces(pos,RY) & bb.PseudoAttacks[ROOK+1,ksq+1]
-               | pieces(pos,UM) & bb.PseudoAttacks[BISHOP+1,ksq+1]) & pieces(pos,color(kingColor$1))
+    pinners = (pieces(pos,HI,RY) & bb.PseudoAttacks[ROOK+1,ksq+1]
+               | pieces(pos,KA,UM) & bb.PseudoAttacks[BISHOP+1,ksq+1]
+               | pieces(pos,KY) & bb.PseudoAttacks[ROOK+1,ksq+1] & forward_bb(bb, c, ksq)) & pieces(pos,color(kingColor$1))
 
     ls = LSBC(0,sbitboard(0))
     while (pinners > sbitboard(0))
@@ -681,7 +715,7 @@ function check_blockers(pos::SPosition, bb::SContextBB, c::Color, kingColor::Col
 end
 
 function discovered_check_candidates(pos::SPosition, bb::SContextBB)
-    check_blockers(pos, bb, pos.sideToMove, pos.sideToMove$1)
+    check_blockers(pos, bb, pos.sideToMove, color(pos.sideToMove$1))
 end
 
 function pinned_pieces(pos::SPosition, bb::SContextBB, c::Color)
@@ -744,7 +778,7 @@ function legal(pos::SPosition, bb::SContextBB, m::SMove, pinned::SBitboard)
     # for legality during move generation.
 
     #println("attackers_to: joken bitboard")
-    ##println(pretty2(bb,((attackers_to(pos, bb, to_sq(m), pieces(pos,us)) & pieces(pos,color(us$1))))))
+    #println(pretty2(bb,((attackers_to(pos, bb, to_sq(m), pieces(pos,us)) & pieces(pos,color(us$1))))))
     #println("joken = ", (attackers_to(pos, bb, to_sq(m), pieces(pos,color(us$1))))== sbitboard(0))
 
     if stype_of(piece_on(pos, from)) == OU
@@ -829,9 +863,12 @@ function put_piece_in_komadai(sp::SPosition, c::Color, pt::PieceType)
 end
 
 function remove_piece_from_komadai(sp::SPosition, c::Color, pt::PieceType)
+    #println("remove_piece_from_komadai: c = ", c, ", pt = ", pt)
     num = sp.capturedPieces[c+1,pt+1] - 1
     if num < 0
         println("!!!underflow komadai!!!")
+        println("c=",c,",pt=",pt)
+        throw("")
         return
     end
     sp.capturedPieces[c+1,pt+1] = int32(num)
@@ -846,9 +883,13 @@ function move_piece(sbb::SContextBB, sp::SPosition, from::Square, to::Square, c:
     sp.byTypeBB[pt+1] $= from_to_bb
     sp.byColorBB[c+1] $= from_to_bb
     sp.board[from+1] = NO_PIECE
+    if pt == 0
+        println("move_piece: pt = 0")
+        throw("move_piece pt is zero error!")
+    end
     sp.board[to+1]   = smake_piece(c, pt)
     sp.index[to+1]   = sp.index[from+1]
-    sp.pieceList[sp.index[to]+1,pt+1,c+1] = to
+    sp.pieceList[sp.index[to+1]+1,pt+1,c+1] = to
 end
 
 function remove_piece(sbb::SContextBB, sp::SPosition, s::Square, c::Color, pt::PieceType)
@@ -860,10 +901,177 @@ function remove_piece(sbb::SContextBB, sp::SPosition, s::Square, c::Color, pt::P
     sp.byTypeBB[pt+1] $= sbb.SquareBB[s+1]
     sp.byColorBB[c+1] $= sbb.SquareBB[s+1]
     sp.board[s+1] = NO_PIECE # Not needed, will be overwritten by capturing
-    pieceC = int32(sp.pieceCount[c+1,pt+1] - 1)
+    pc = int32(sp.pieceCount[c+1,pt+1] - 1)
     sp.pieceCount[c+1,pt+1] = pc
-    lastSquare = sp.pieceList[oc+1,pt+1,c+1]
+    lastSquare = sp.pieceList[pc+1,pt+1,c+1]
     sp.index[lastSquare+1] = sp.index[s+1]
-    sp.pieceList[sp.index[lastSquare+1],pt+1,c+1,] = lastSquare
-    sp.pieceList[pieceC+1,pt+1,c+1] = SSQ_NONE
+    sp.pieceList[sp.index[lastSquare+1]+1,pt+1,c+1] = lastSquare
+    sp.pieceList[pc+1,pt+1,c+1] = SSQ_NONE
+    #println("$(pc+1),$(pt+1),$(c+1)] = SSQ_NONE")
+end
+
+function gives_check(pos::SPosition, bb::SContextBB, m::SMove, ci::SCheckInfo)
+    from = from_sq(m)
+    to   = to_sq(m)
+    if from != SSQ_DROP
+        pt = stype_of(piece_on(pos,from))
+    else
+        pt = promotion_type(m)
+    end
+    pt2  = promotion_type(m) 
+
+    # Is there a direct check?
+    if (ci.checkSq[pt+1] & bb.SquareBB[to+1]) > sbitboard(0)
+        return true
+    end
+
+    # Is there a discovered check?
+    if (from != SSQ_DROP)&&((unlikely(ci.dcCandidates) > sbitboard(0))
+        && ((ci.dcCandidates & bb.SquareBB[from+1])  > sbitboard(0))
+        && (!(aligned(bb, from, to, ci.ksq) > sbitboard(0))))
+
+        return true
+    end
+    
+    if pt != pt2 # promote!
+        if pt2 == RY || pt2 == UM
+            return ((attacks_bb(bb, spiece(m), to, pieces(pos) $ bb.SquareBB[from+1], true) & bb.SquareBB[ci.ksq+1]) > sbitboard(0))
+        else
+            return ((attacks_bb(bb, spiece(m), to, pieces(pos) $ bb.SquareBB[from+1]) & bb.SquareBB[ci.ksq+1]) > sbitboard(0))
+        end
+    end
+
+    false
+end
+
+function do_move(pos::SPosition, bb::SContextBB, m::SMove, newSt::SStateInfo)
+    ci = SCheckInfo(pos,bb)
+    do_move(pos, bb, m, newSt, ci, gives_check(pos, bb, m, ci))
+end
+
+function do_move(pos::SPosition, bb::SContextBB, m::SMove, newSt::SStateInfo, ci::SCheckInfo, moveIsCheck::Bool)
+    newSt.previous = pos.st
+    pos.st = newSt
+
+    pos.gamePly += 1
+    pos.st.pliesFromNull += 1
+
+    #println("do_move: ",move_to_san(m))
+    
+    us = pos.sideToMove
+    them = color(us$1)
+    from = from_sq(m)
+    to   = to_sq(m)
+    if from != SSQ_DROP
+        pc   = piece_on(pos,from)
+        pt   = stype_of(pc)
+        if pt == 0
+            println("pt=0x0")
+            throw("pt==0")
+        end
+    else
+        pc = spiece(m)
+        pt = stype_of(pc)
+    end
+    pt2  = promotion_type(m) 
+    captured = captured_of(m) # stype_of(piece_on(pos,to))
+    flag = type_of(m)
+
+    if captured > NO_PIECE_TYPE
+        capsq = to
+
+        # Update board and piece lists
+        remove_piece(bb, pos, capsq, them, captured)
+        put_piece_in_komadai(pos, us, (captured>OU)? pieceType(captured - PT_PROMOTE_OFFSET):captured)
+    end
+
+    if from == SSQ_DROP
+        remove_piece_from_komadai(pos, us, pt2)
+        put_piece(bb, pos, to, us, pt2)
+    else
+        move_piece(bb, pos, from, to, us, pt)
+    end
+
+    if flag == SPROMOTION # promotion!
+        remove_piece(bb, pos, to, us, pt)
+        put_piece(bb, pos, to, us, pt2)
+    end
+
+    pos.st.capturedType = captured
+
+    pos.st.checkersBB = sbitboard(0)
+    pos.st.checkersBB = pieces(pos, color(pos.sideToMove$1)) & attackers_to(pos, bb, king_square(pos, pos.sideToMove))
+
+    if moveIsCheck
+        if pt != pt2
+            pos.st.checkersBB = attackers_to(pos, bb, king_square(pos,them)) & pieces(pos,us)
+        else
+            if (ci.checkSq[pt] & bb.SquareBB[to+1]) > sbitboard(0)
+                pos.st.checkersBB |= bb.SquareBB[to+1]
+                #println("update checkers(1)")
+            end
+
+            if (from != SSQ_DROP)&&(ci.dcCandidates > sbitboard(0)) && (ci.dcCandidates & bb.SquareBB[from+1]) > sbitboard(0)
+                if (pt != HI)&&(pt != RY)
+                    pos.st.checkersBB |= attacks_from(pos, bb, smake_piece(us,HI), king_square(pos,them), true) & pieces(pos, pos.sideToMove, HI, RY)
+                    #println("update checkers(2)")
+                end
+
+                if (pt != KA)&&(pt != UM)
+                    pos.st.checkersBB |= attacks_from(pos, bb, smake_piece(us,KA), king_square(pos,them), true) & pieces(pos, pos.sideToMove, KA, UM)
+                    #println("update checkers(3)")
+                end
+            end
+        end
+    end
+    #println("after updated checkersBB") # It's too late for avoiding checks...
+    #println(pretty2(bb,pos.st.checkersBB))
+    pos.sideToMove = color(pos.sideToMove $ 1)
+end
+
+
+# Position::undo_move() unmakes a move. When it returns, the position should
+# be restored to exactly the same state as before the move was made.
+
+function undo_move(pos::SPosition, bb::SContextBB, m::SMove)
+    pos.sideToMove = color(pos.sideToMove $ 1)
+
+    us = pos.sideToMove
+    them = color(us $ 1)
+    from = from_sq(m)
+    to   = to_sq(m)
+    pc   = piece_on(pos,to)
+    pt   = stype_of(pc)
+    pt2  = promotion_type(m) 
+    # captured = pos.st.capturedType
+    captured = captured_of(m)
+    flag = type_of(m)
+
+    if flag == SPROMOTION
+        promotion = pt2
+        remove_piece(bb, pos, to, us, promotion)
+        pt = pieceType(promotion - PT_PROMOTE_OFFSET)
+        put_piece(bb, pos, to, us, pt)
+    end
+
+    if from == SSQ_DROP
+        remove_piece(bb, pos, to, us, pt2)
+        put_piece_in_komadai(pos, us, pt2)
+    else
+        move_piece(bb, pos, to, from, us, pt) # Put the piece back at the source square
+    end
+
+    #println("redo:", bool(captured > NO_PIECE_TYPE))
+
+    if captured > NO_PIECE_TYPE
+        capsq = to
+        # Update board and piece lists
+        remove_piece_from_komadai(pos, us, (captured > OU)? pieceType(captured - PT_PROMOTE_OFFSET): captured)
+        put_piece(bb, pos, capsq, them, captured) # Restore the captured piece
+    end
+
+    # Finally point our state pointer back to the previous state
+    pos.st = pos.st.previous
+
+    pos.gamePly -= 1
 end
